@@ -1,6 +1,17 @@
 # Picap Studio
 
-App web **gratuita** inspirada en Higgsfield: genera imágenes con IA y conviértelas en clips de video con movimientos de cámara cinematográficos. Sin registro, sin API keys y sin servidor propio.
+App **móvil gratuita** inspirada en Higgsfield: genera imágenes con IA y conviértelas en clips de video con movimientos de cámara cinematográficos. Sin registro, sin API keys y sin servidor propio.
+
+- **Android**: app nativa (Capacitor). El APK se compila gratis en GitHub Actions.
+- **iPhone**: se instala como PWA desde Safari → Compartir → “Añadir a pantalla de inicio”.
+
+## Instalar en Android
+
+1. Ve a la pestaña **Actions** del repositorio → workflow **Build Android APK** → última ejecución.
+2. Descarga el artifact **picap-studio-apk** (un .zip con `app-debug.apk`).
+3. Pásalo al teléfono, ábrelo y permite “instalar apps de origen desconocido”.
+
+Para publicarla en Google Play hace falta firmar un build de release (`./gradlew bundleRelease`) y una cuenta de desarrollador (pago único de 25 USD).
 
 ## Qué hace
 
@@ -8,7 +19,7 @@ App web **gratuita** inspirada en Higgsfield: genera imágenes con IA y conviér
 - **Subir tu propia foto** (se procesa 100% en el navegador).
 - **16 movimientos de cámara**: Dolly In/Out, Crash Zoom, Pan, Tilt, 360 Orbit, Spiral Zoom, Dutch Angle, Handheld, Earthquake, Crane Up, Heartbeat…
 - **Efectos visuales**: Cinemático (teal & orange + letterbox), Film Grain, VHS Glitch, Noir, Light Leak, Dreamy Glow.
-- **Exportar video** MP4/WebM (2–10 s) directamente en el navegador con `MediaRecorder`.
+- **Exportar video** MP4/WebM (2–10 s) en el propio teléfono con `MediaRecorder`, y **guardar/compartir** con la hoja nativa (Fotos, TikTok, WhatsApp, Instagram…).
 - **Galería** local de tus creaciones.
 
 ## Cómo funciona
@@ -18,7 +29,8 @@ App web **gratuita** inspirada en Higgsfield: genera imágenes con IA y conviér
 | Generación de imagen | API pública de Pollinations | Gratis |
 | Animación y efectos | Canvas 2D en el navegador | Gratis |
 | Exportación de video | `canvas.captureStream` + `MediaRecorder` | Gratis |
-| Hosting | GitHub Pages (o cualquier hosting estático) | Gratis |
+| App Android | Capacitor + GitHub Actions | Gratis |
+| Versión web / iPhone (PWA) | GitHub Pages | Gratis |
 
 ## Desarrollo
 
@@ -27,6 +39,7 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # genera dist/
 npm run lint
+npm run android  # compila, sincroniza y abre el proyecto en Android Studio
 ```
 
 Para usar otro endpoint de imágenes compatible, define `VITE_IMAGE_API` (por defecto `https://image.pollinations.ai/prompt/`).
@@ -37,6 +50,6 @@ El workflow `.github/workflows/deploy.yml` publica en GitHub Pages en cada push 
 
 ## Notas
 
-- La grabación ocurre en tiempo real: mantén la pestaña visible mientras se exporta.
+- La grabación ocurre en tiempo real: mantén la app abierta mientras se exporta.
 - El servicio gratuito de imágenes tiene límites de uso; si falla, reintenta en unos segundos.
 - Los videos se generan animando una imagen (movimiento 2D/“2.5D”); no es un modelo de video generativo.
