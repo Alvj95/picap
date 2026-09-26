@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { App as CapApp } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 import { EFFECTS, MOTION_PRESETS } from './lib/motion'
 import { drawFrame, recordVideo, type RenderOptions } from './lib/render'
 import { shareVideo } from './lib/share'
@@ -55,6 +57,19 @@ export default function App() {
   const aspect = ASPECTS.find((a) => a.id === aspectId)!
   const preset = MOTION_PRESETS.find((p) => p.id === presetId)!
   const options: RenderOptions = useMemo(() => ({ preset, effect, intensity, duration }), [preset, effect, intensity, duration])
+
+  // Android back button: close the result, then return to the Crear tab, then exit.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    const sub = CapApp.addListener('backButton', () => {
+      if (video) setVideo(null)
+      else if (tab !== 'create') setTab('create')
+      else CapApp.exitApp()
+    })
+    return () => {
+      sub.then((h) => h.remove())
+    }
+  }, [video, tab])
 
   // Size the canvas to the image, capped for smooth recording.
   useEffect(() => {
