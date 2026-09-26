@@ -33,7 +33,11 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
-      - run: cp android/app/build/outputs/apk/debug/app-debug.apk PicapStudio.apk
+      - name: Package APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk PicapStudio.apk
+          # Some browsers (Edge SmartScreen, Chrome) block raw .apk downloads; a zip copy gets through.
+          zip -j PicapStudio-apk.zip PicapStudio.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -48,8 +52,12 @@ jobs:
           name: Picap Studio v0.1.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: true
-          files: PicapStudio.apk
+          files: |
+            PicapStudio.apk
+            PicapStudio-apk.zip
           body: |
             APK de Android de Picap Studio (build de prueba, rama `${{ github.ref_name }}`).
 
             **Instalar:** descarga `PicapStudio.apk` desde el teléfono, ábrelo y permite instalar apps de origen desconocido.
+
+            Si el navegador bloquea la descarga del .apk, baja `PicapStudio-apk.zip`, descomprímelo y abre el .apk que trae dentro.
