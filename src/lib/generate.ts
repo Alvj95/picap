@@ -51,6 +51,29 @@ export function buildImageUrl(o: { prompt: string; style: string; aspect: Aspect
   return `${IMAGE_API}${encodeURIComponent(fullPrompt)}?${params}`
 }
 
+const TEXT_API = import.meta.env.VITE_TEXT_API ?? 'https://text.pollinations.ai/'
+
+/** Free text AI: turns a short idea (any language) into a detailed English image prompt. */
+export async function enhancePrompt(idea: string): Promise<string> {
+  const instruction =
+    'Rewrite this idea as one vivid, detailed English prompt for an AI image generator ' +
+    '(subject, setting, lighting, camera, mood). Reply with the prompt only, no quotes: ' +
+    idea
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 30_000)
+  try {
+    const res = await fetch(`${TEXT_API}${encodeURIComponent(instruction)}?model=openai&seed=${Date.now() % 1000}`, { signal: ctrl.signal })
+    if (!res.ok) throw new Error(String(res.status))
+    const text = (await res.text()).trim().replace(/^["']|["']$/g, '')
+    if (!text) throw new Error('empty')
+    return text
+  } catch {
+    throw new Error('No se pudo mejorar el prompt ahora. Inténtalo de nuevo en unos segundos.')
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function loadImage(src: string, timeoutMs = 90_000): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()

@@ -23,6 +23,13 @@ Para publicarla en Google Play hace falta firmar un build de release (`./gradlew
 - **Efectos visuales**: Cinemático (teal & orange + letterbox), Film Grain, VHS Glitch, Noir, Light Leak, Dreamy Glow.
 - **Exportar video** MP4/WebM (2–10 s) en el propio teléfono con `MediaRecorder`, y **guardar/compartir** con la hoja nativa (Fotos, TikTok, WhatsApp, Instagram…).
 - **Galería** local de tus creaciones.
+- **Edición con IA en el propio teléfono** (gratis, sin servidor):
+  - **Movimiento 3D**: estima la profundidad de la foto (Depth Anything V2) y genera paralaje real — lo cercano se mueve más que el fondo.
+  - **Bokeh IA**: desenfoca el fondo según la profundidad, como modo retrato.
+  - **Cambiar fondo**: recorta al sujeto (RMBG-1.4) y lo pone sobre un fondo desenfocado, de color, croma o **generado con IA** a partir de un texto.
+  - **✨ Mejorar prompt**: convierte una idea corta en un prompt detallado.
+
+  Los modelos se descargan de Hugging Face la primera vez (~25–45 MB cada uno) y quedan en caché. RMBG-1.4 tiene licencia de uso no comercial.
 
 ## Cómo funciona
 

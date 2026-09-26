@@ -1,3 +1,4 @@
+import type { DepthRenderer } from './depth3d'
 import type { MotionPreset } from './motion'
 
 export type RenderOptions = {
@@ -5,6 +6,8 @@ export type RenderOptions = {
   effect: string
   intensity: number
   duration: number // seconds
+  depth?: DepthRenderer | null // AI depth: real 3D parallax instead of a flat 2D move
+  bokeh?: number // 0..1 depth-of-field blur (needs depth)
 }
 
 let grainTile: HTMLCanvasElement | null = null
@@ -35,7 +38,13 @@ export function drawFrame(ctx: CanvasRenderingContext2D, img: CanvasImageSource 
   const { width: W, height: H } = ctx.canvas
   const loopT = o.duration > 0 ? (t % o.duration) / o.duration : 0
   const p = o.preset.easing(loopT)
-  const tr = o.preset.at(p, t, o.intensity)
+  let tr = o.preset.at(p, t, o.intensity)
+
+  if (o.depth) {
+    // Most of the camera move becomes depth-dependent parallax; a little stays as a flat move.
+    img = o.depth.render({ offsetX: tr.x * 1.1, offsetY: tr.y * 1.1, zoom: (tr.scale - 1) * 0.6, bokeh: o.bokeh ?? 0 })
+    tr = { ...tr, x: tr.x * 0.3, y: tr.y * 0.3, scale: Math.max(1, tr.scale) * 1.05 }
+  }
 
   // Never reveal the image edges: grow the zoom enough to cover pans and rotations.
   const aspect = Math.max(W / H, H / W)
