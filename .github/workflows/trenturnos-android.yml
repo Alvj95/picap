@@ -1,0 +1,69 @@
+name: Build TrenTurnos APK
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'trenturnos/**'
+      - '.github/workflows/trenturnos-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write # publish the APK as a GitHub Release
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trenturnos
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trenturnos/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - run: npm ci
+      - run: npx cap sync android
+
+      # The ubuntu runner ships the Android SDK (ANDROID_HOME); Gradle fetches any missing platform.
+      - name: Assemble debug APK
+        working-directory: trenturnos/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Package APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk ../TrenTurnos.apk
+          # Some browsers block raw .apk downloads; a zip copy gets through.
+          zip -j ../TrenTurnos-apk.zip ../TrenTurnos.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trenturnos-apk
+          path: TrenTurnos.apk
+          if-no-files-found: error
+
+      - name: Publish release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: trenturnos-v5.0.${{ github.run_number }}
+          name: TrenTurnos v5.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          # Picap Studio's Pages deploy downloads its APK from the "latest" release; keep that one.
+          make_latest: false
+          files: |
+            TrenTurnos.apk
+            TrenTurnos-apk.zip
+          body: |
+            APK de Android de TrenTurnos (rama `${{ github.ref_name }}`).
+
+            **Instalar:** descarga `TrenTurnos.apk` desde el teléfono, ábrelo y permite instalar apps de origen desconocido.
+
+            Si el navegador bloquea la descarga del .apk, baja `TrenTurnos-apk.zip`, descomprímelo y abre el .apk que trae dentro.

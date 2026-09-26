@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TrenTurnos</string>
+    <string name="title_activity_main">TrenTurnos</string>
+    <string name="package_name">com.trenturnos.app</string>
+    <string name="custom_url_scheme">com.trenturnos.app</string>
+</resources>
