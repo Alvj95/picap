@@ -7,8 +7,9 @@ android {
         applicationId "com.picap.studio"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI passes the run number so every APK can be installed over the previous one.
+        versionCode ((System.getenv("GITHUB_RUN_NUMBER") ?: "1") as Integer)
+        versionName "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,7 +17,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        // Fixed test key (not secret): every build gets the same signature, so updates install
+        // cleanly. Use a private key kept out of the repo for Google Play releases.
+        debug {
+            storeFile file('picap-debug.keystore')
+            storePassword 'picapdebug'
+            keyAlias 'picap'
+            keyPassword 'picapdebug'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
