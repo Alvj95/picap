@@ -3,9 +3,6 @@ name: Build Android APK
 on:
   push:
     branches: ['**']
-    paths-ignore:
-      - 'trenturnos/**'
-      - '.github/workflows/trenturnos-android.yml'
   workflow_dispatch:
 
 permissions:
