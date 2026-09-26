@@ -7,9 +7,11 @@ App **móvil gratuita** inspirada en Higgsfield: genera imágenes con IA y convi
 
 ## Instalar en Android
 
-1. Ve a la pestaña **Actions** del repositorio → workflow **Build Android APK** → última ejecución.
-2. Descarga el artifact **picap-studio-apk** (un .zip con `app-debug.apk`).
-3. Pásalo al teléfono, ábrelo y permite “instalar apps de origen desconocido”.
+1. Desde el teléfono abre la página **Releases** del repositorio (la más reciente).
+2. Descarga **PicapStudio.apk**.
+3. Ábrelo y permite “instalar apps de origen desconocido”.
+
+Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica ahí.
 
 Para publicarla en Google Play hace falta firmar un build de release (`./gradlew bundleRelease`) y una cuenta de desarrollador (pago único de 25 USD).
 
