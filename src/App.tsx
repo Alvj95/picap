@@ -186,7 +186,13 @@ export default function App() {
         <div className="logo">
           <span className="logo-mark">◉</span> Picap
         </div>
-        <span className="free-badge">Gratis</span>
+        {Capacitor.isNativePlatform() ? (
+          <span className="free-badge">Gratis</span>
+        ) : (
+          <a className="free-badge" href="./PicapStudio.apk" download>
+            ⬇ App Android
+          </a>
+        )}
       </header>
 
       <section className="stage">

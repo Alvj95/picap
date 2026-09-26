@@ -33,7 +33,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; flex: none; }
 .logo { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 6px; }
 .logo-mark { color: var(--accent); }
-.free-badge { font-size: 12px; font-weight: 600; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 99px; padding: 3px 10px; }
+.free-badge { text-decoration: none; font-size: 12px; font-weight: 600; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 99px; padding: 3px 10px; }
 
 /* Preview */
 .stage { position: relative; flex: 1 1 0; min-height: 180px; padding: 0 16px 8px; container-type: size; display: grid; place-items: center; }
