@@ -57,10 +57,6 @@ Para usar otro endpoint de imágenes compatible, define `VITE_IMAGE_API` (por de
 
 El workflow `.github/workflows/deploy.yml` publica en GitHub Pages en cada push a `main`. Activa **Settings → Pages → Source: GitHub Actions** en el repositorio.
 
-## Turnos Handling
-
-En [`handling/`](handling/) está una segunda app, independiente: calendario de turnos para el personal de handling del aeropuerto (horarios, vuelos de check-in, horario general de la empresa y cambios de turno). Se publica en GitHub Pages bajo `/turnos/`. Ver [handling/README.md](handling/README.md).
-
 ## Notas
 
 - La grabación ocurre en tiempo real: mantén la app abierta mientras se exporta.
