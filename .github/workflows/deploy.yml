@@ -32,6 +32,12 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      - name: Build Turnos Handling at /turnos/
+        run: |
+          npm ci --prefix handling
+          npm test --prefix handling
+          npm run build --prefix handling
+          cp -r handling/dist dist/turnos
       - name: Mirror latest APK on the site
         env:
           GH_TOKEN: ${{ github.token }}

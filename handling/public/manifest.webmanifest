@@ -1,0 +1,12 @@
+{
+  "name": "Turnos Handling",
+  "short_name": "Turnos",
+  "description": "Calendario de turnos, vuelos de check-in y cambios para el personal de handling.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f3b73",
+  "theme_color": "#0f3b73",
+  "lang": "es",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
