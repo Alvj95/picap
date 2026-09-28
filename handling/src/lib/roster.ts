@@ -178,7 +178,7 @@ function finish(entries: RosterEntry[], warnings: string[], format: ParseResult[
 export const isWorking = (e: RosterEntry) => Boolean(e.start && e.end)
 
 /** Whether a roster name refers to the user (by employee number or by name, in any word order). */
-export function isMe(employee: string, profile: Profile): boolean {
+export function isMe(employee: string, profile: Pick<Profile, 'name' | 'employeeId'>): boolean {
   const who = normalizeText(employee)
   const id = normalizeText(profile.employeeId)
   if (id && who.split(/[^a-z0-9]+/).includes(id)) return true

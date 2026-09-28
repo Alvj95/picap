@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { emptyData } from './store'
 import { isMe, mergeCompanyShifts, parseCell, parseDate, parseFlights, parseRoster } from './roster'
-import { applyAcceptedSwap, newSwap, swapCandidates } from './swaps'
+import { answerMessage, applyAcceptedSwap, applyIncomingSwap, mailtoUrl, newSwap, receiveLink, schedulingEmail, swapCandidates, swapMessage } from './swaps'
+import { readLink } from './links'
 import { monthGrid, nightMinutes, normalizeTime, shiftMinutes } from './time'
 import { shiftsToICS } from './ics'
 
@@ -79,7 +80,7 @@ describe('roster import', () => {
     expect(isMe('12345 - B. Soto', { name: '', employeeId: '1234' })).toBe(false)
   })
   it('replaces company shifts but keeps manual ones and typed flights', () => {
-    const profile = { name: 'Ana Pérez', employeeId: '' }
+    const profile = { name: 'Ana Pérez', employeeId: '', schedulingEmail: 'programacion@example.com' }
     const roster = parseRoster('Fecha;Empleado;Entrada;Salida\n05/10/2026;Ana Pérez;05:00;13:00\n06/10/2026;Ana Pérez;06:00;14:00', 2026, 9).entries
     const first = mergeCompanyShifts([], roster, profile)
     first[0].flights = parseFlights('IB6401 MAD 07:30')
@@ -92,7 +93,7 @@ describe('roster import', () => {
 })
 
 describe('swaps', () => {
-  const profile = { name: 'Ana Pérez', employeeId: '' }
+  const profile = { name: 'Ana Pérez', employeeId: '', schedulingEmail: 'programacion@example.com' }
   const roster = parseRoster(
     ['Fecha;Empleado;Entrada;Salida', '05/10/2026;Ana Pérez;05:00;13:00', '05/10/2026;Luis Gómez;13:00;21:00',
       '05/10/2026;Marta Ruiz;LIBRE;', '05/10/2026;Pepe Díaz;05:00;13:00', '06/10/2026;Sara Gil;05:00;13:00'].join('\n'),
@@ -111,7 +112,7 @@ describe('swaps', () => {
     const next = applyAcceptedSwap({ ...data, swaps: [swap] }, swap)
     expect(next.shifts[0]).toMatchObject({ start: '13:00', end: '21:00', source: 'cambio' })
     expect(next.roster.find((e) => e.employee === 'Luis Gómez')).toMatchObject({ start: '05:00', end: '13:00' })
-    expect(next.swaps[0].status).toBe('aceptado')
+    expect(next.swaps[0].status).toBe('aprobado')
   })
   it('removes a covered shift', () => {
     const data = { ...emptyData(), profile, roster, shifts: mergeCompanyShifts([], roster, profile) }
@@ -119,6 +120,64 @@ describe('swaps', () => {
     const next = applyAcceptedSwap(data, swap)
     expect(next.shifts).toHaveLength(0)
     expect(next.roster.find((e) => e.employee === 'Marta Ruiz')).toMatchObject({ start: '05:00', end: '13:00', label: '' })
+  })
+})
+
+vi.stubGlobal('location', { origin: 'https://example.github.io', pathname: '/picap/turnos/' })
+
+describe('request → coworker accepts → email to scheduling', () => {
+  const ana = { name: 'Ana Pérez', employeeId: '1234', schedulingEmail: 'programacion@example.com' }
+  const luis = { name: 'Luis Gómez', employeeId: '', schedulingEmail: '' }
+  const csv = ['Fecha;Empleado;Entrada;Salida', '05/10/2026;Ana Pérez;05:00;13:00', '05/10/2026;Luis Gómez;13:00;21:00'].join('\n')
+  const roster = parseRoster(csv, 2026, 9).entries
+  const hashOf = (message: string) => message.slice(message.indexOf('#'))
+
+  it('runs the whole flow across two phones', () => {
+    let anaData = { ...emptyData(), profile: ana, roster, shifts: mergeCompanyShifts([], roster, ana) }
+    let luisData = { ...emptyData(), profile: luis, roster, shifts: mergeCompanyShifts([], roster, luis) }
+    const swap = newSwap({ kind: 'intercambio', date: '2026-10-05', start: '05:00', end: '13:00', role: 'Check-in', coworker: 'Luis Gómez', coworkerStart: '13:00', coworkerEnd: '21:00', note: 'Médico' })
+    anaData = { ...anaData, swaps: [swap] }
+
+    // Luis opens the request link from WhatsApp.
+    const req = readLink(hashOf(swapMessage(swap, ana.name)))!
+    const received = receiveLink(luisData, req)
+    luisData = received.data
+    expect(received.notice).toMatch(/Ana Pérez/)
+    expect(luisData.incoming[0]).toMatchObject({ from: 'Ana Pérez', start: '05:00', coworkerStart: '13:00', status: 'pendiente' })
+    expect(receiveLink(luisData, req).data.incoming).toHaveLength(1) // opening twice does not duplicate
+
+    // Luis accepts and Ana opens the answer link.
+    const ans = readLink(hashOf(answerMessage(luisData.incoming[0], true, luis.name, 'Sin problema')))!
+    anaData = receiveLink(anaData, ans).data
+    expect(anaData.swaps[0]).toMatchObject({ status: 'aceptado_companero', reply: 'Sin problema' })
+    expect(anaData.swaps[0].answeredAt).toBeTypeOf('number')
+
+    // Email to the scheduling office.
+    const mail = schedulingEmail(anaData.swaps[0], ana)
+    expect(mail.to).toBe('programacion@example.com')
+    expect(mail.body).toContain('Ana Pérez: pasa de 05:00-13:00 a 13:00-21:00')
+    expect(mail.body).toContain('Luis Gómez: pasa de 13:00-21:00 a 05:00-13:00')
+    expect(mail.body).toContain('nº 1234')
+    expect(mailtoUrl(mail)).toMatch(/^mailto:programacion%40example\.com\?subject=/)
+
+    // Both apply it once approved.
+    anaData = applyAcceptedSwap(anaData, anaData.swaps[0])
+    luisData = applyIncomingSwap(luisData, luisData.incoming[0])
+    expect(anaData.shifts[0]).toMatchObject({ start: '13:00', end: '21:00' })
+    expect(luisData.shifts[0]).toMatchObject({ start: '05:00', end: '13:00' })
+    expect(luisData.incoming[0].status).toBe('aplicado')
+  })
+
+  it('ignores answers for unknown requests and broken links', () => {
+    expect(readLink('#cambio=@@@')).toBeNull()
+    const r = receiveLink(emptyData(), { t: 'ans', id: 'x', ok: true, by: 'Luis', note: '' })
+    expect(r.notice).toMatch(/No encuentro/)
+  })
+
+  it('adds the covered shift to the coworker', () => {
+    const data = { ...emptyData(), profile: luis, roster: [] }
+    const next = applyIncomingSwap({ ...data, incoming: [{ id: 'i', kind: 'cesion', from: 'Ana Pérez', to: 'Luis Gómez', date: '2026-10-06', start: '22:00', end: '06:00', role: 'Rampa', coworkerStart: '', coworkerEnd: '', note: '', status: 'aceptado', receivedAt: 0 }] }, { id: 'i', kind: 'cesion', from: 'Ana Pérez', to: 'Luis Gómez', date: '2026-10-06', start: '22:00', end: '06:00', role: 'Rampa', coworkerStart: '', coworkerEnd: '', note: '', status: 'aceptado', receivedAt: 0 })
+    expect(next.shifts).toMatchObject([{ date: '2026-10-06', start: '22:00', end: '06:00', source: 'cambio' }])
   })
 })
 

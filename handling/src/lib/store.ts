@@ -5,18 +5,31 @@ const KEY = 'turnos-handling:v1'
 
 export const emptyData = (): AppData => ({
   version: 1,
-  profile: { name: '', employeeId: '' },
+  profile: { name: '', employeeId: '', schedulingEmail: '' },
   shifts: [],
   roster: [],
   rosterName: '',
   rosterImportedAt: null,
   swaps: [],
+  incoming: [],
 })
 
 /** Validates a backup or stored blob, filling any missing field with defaults. */
 export function reviveData(raw: unknown): AppData {
   if (!raw || typeof raw !== 'object' || (raw as AppData).version !== 1) throw new Error('Archivo de copia no válido.')
-  return { ...emptyData(), ...(raw as AppData) }
+  const data = { ...emptyData(), ...(raw as AppData) }
+  return {
+    ...data,
+    profile: { ...emptyData().profile, ...data.profile },
+    // Before the coworker/scheduling flow, "aceptado" meant the change was already applied.
+    swaps: data.swaps.map((s) => ({
+      ...s,
+      answeredAt: s.answeredAt ?? null,
+      reply: s.reply ?? '',
+      emailedAt: s.emailedAt ?? null,
+      status: (s.status as string) === 'aceptado' ? 'aprobado' : s.status,
+    })),
+  }
 }
 
 function load(): AppData {

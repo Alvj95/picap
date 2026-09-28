@@ -187,3 +187,22 @@ code { background: var(--panel-2); padding: 1px 4px; border-radius: 4px; font-si
   .row-3 { grid-template-columns: 1fr 1fr; }
   .flight-list li { grid-template-columns: 1fr 1fr; }
 }
+
+/* Swap flow */
+.banner.notice { display: flex; justify-content: space-between; gap: 8px; border-style: solid; border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--panel)); }
+.count { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 12px; text-align: center; vertical-align: middle; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 10px 0 0; padding: 0; list-style: none; }
+.steps li { padding-top: 6px; border-top: 3px solid var(--line); font-size: 11px; font-weight: 600; color: var(--muted); }
+.steps li.done { border-top-color: var(--ok); color: var(--text); }
+.callout { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--ok) 10%, var(--panel)); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); }
+.callout p { margin: 0; font-size: 14px; }
+.email-preview { font-size: 13px; }
+.email-preview summary { cursor: pointer; color: var(--primary); font-weight: 600; }
+.email-preview p { margin: 8px 0 4px; }
+.email-preview pre { margin: 0 0 8px; padding: 10px; border-radius: 8px; background: var(--panel); font-family: inherit; white-space: pre-wrap; }
+.swap-card.incoming { border-left: 5px solid var(--primary); }
+.swap-card.denegado, .swap-card.aplicado { opacity: 0.6; }
+.status.aceptado_companero, .status.aprobado { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.status.enviado_programacion { background: color-mix(in srgb, var(--primary) 14%, transparent); color: var(--primary); }
+.status.denegado { color: var(--danger); }
+.btn.danger:not(.ghost) { background: var(--danger); border-color: var(--danger); color: #fff; }

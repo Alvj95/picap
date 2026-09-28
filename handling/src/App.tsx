@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Shift } from './types'
 import { CalendarTab } from './components/CalendarTab'
 import { HoursTab } from './components/HoursTab'
@@ -7,7 +7,8 @@ import { RosterTab } from './components/RosterTab'
 import { SwapsTab } from './components/SwapsTab'
 import { isMe, mergeCompanyShifts } from './lib/roster'
 import { emptyData, useAppData } from './lib/store'
-import { applyAcceptedSwap } from './lib/swaps'
+import { readLink } from './lib/links'
+import { applyAcceptedSwap, applyIncomingSwap, receiveLink } from './lib/swaps'
 
 type Tab = 'calendar' | 'roster' | 'swaps' | 'hours'
 
@@ -25,9 +26,33 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('calendar')
   const [profileOpen, setProfileOpen] = useState(false)
   const [swapShiftId, setSwapShiftId] = useState('')
+  const [notice, setNotice] = useState('')
+
+  // Swap request/answer links arrive as "#cambio=…" (opened from WhatsApp).
+  useEffect(() => {
+    const handle = () => {
+      const link = readLink(location.hash)
+      if (!location.hash.includes('cambio=')) return
+      history.replaceState(null, '', location.pathname + location.search)
+      setTab('swaps')
+      if (!link) return setNotice('El enlace del cambio está incompleto. Pide que te lo reenvíen.')
+      update((d) => {
+        const result = receiveLink(d, link)
+        setNotice(result.notice)
+        return result.data
+      })
+      requestAnimationFrame(() => document.querySelector('.content')?.scrollTo(0, 0))
+    }
+    handle()
+    window.addEventListener('hashchange', handle)
+    return () => window.removeEventListener('hashchange', handle)
+  }, [update])
 
   const myRoster = useMemo(() => data.roster.filter((e) => isMe(e.employee, data.profile)), [data.roster, data.profile])
-  const pendingSwaps = data.swaps.filter((s) => s.status === 'pendiente').length
+  // Things waiting on me: requests to answer and accepted changes to email.
+  const pendingSwaps =
+    data.incoming.filter((i) => i.status === 'pendiente').length +
+    data.swaps.filter((s) => s.status === 'aceptado_companero').length
 
   const saveShift = (shift: Shift) => update((d) => ({
     ...d,
@@ -60,6 +85,9 @@ export default function App() {
             👋 Empieza poniendo tu nombre tal como aparece en el horario de la empresa.
           </button>
         )}
+        {notice && (
+          <button className="banner notice" onClick={() => setNotice('')}>{notice} <span className="muted">✕</span></button>
+        )}
         {tab === 'calendar' && (
           <CalendarTab
             shifts={data.shifts}
@@ -89,11 +117,18 @@ export default function App() {
             roster={data.roster}
             profile={data.profile}
             swaps={data.swaps}
+            incoming={data.incoming}
             selectedId={swapShiftId}
             onSelect={setSwapShiftId}
             onCreate={(swap) => update((d) => ({ ...d, swaps: [...d.swaps, swap] }))}
-            onStatus={(id, status) => update((d) => ({ ...d, swaps: d.swaps.map((s) => (s.id === id ? { ...s, status } : s)) }))}
-            onAccept={(swap) => update((d) => applyAcceptedSwap(d, swap))}
+            onUpdate={(id, patch) => update((d) => ({ ...d, swaps: d.swaps.map((s) => (s.id === id ? { ...s, ...patch } : s)) }))}
+            onApprove={(swap) => update((d) => applyAcceptedSwap(d, swap))}
+            onSchedulingEmail={(email) => update((d) => ({ ...d, profile: { ...d.profile, schedulingEmail: email } }))}
+            onAnswer={(id, ok) => update((d) => ({
+              ...d,
+              incoming: d.incoming.map((i) => (i.id === id ? { ...i, status: ok ? 'aceptado' : 'rechazado' } : i)),
+            }))}
+            onApplyIncoming={(inc) => update((d) => applyIncomingSwap(d, inc))}
           />
         )}
         {tab === 'hours' && <HoursTab shifts={data.shifts} />}

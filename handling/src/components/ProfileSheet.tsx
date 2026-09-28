@@ -34,6 +34,10 @@ export function ProfileSheet({ data, onSave, onRestore, onReset, onClose }: Prop
         <span>Nº de empleado (opcional)</span>
         <input value={profile.employeeId} inputMode="numeric" onChange={(e) => setProfile({ ...profile, employeeId: e.target.value })} />
       </label>
+      <label className="field">
+        <span>Correo de programación (a donde se envían los cambios)</span>
+        <input type="email" value={profile.schedulingEmail} placeholder="programacion@empresa.com" onChange={(e) => setProfile({ ...profile, schedulingEmail: e.target.value.trim() })} />
+      </label>
       <div className="actions">
         <button className="btn primary" onClick={() => { onSave(profile); onClose() }}>Guardar</button>
       </div>
