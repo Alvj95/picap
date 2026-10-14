@@ -1,37 +1,20 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
-import { colors, motion, radius, spacing, typography, type ColorScheme, type ThemeColors } from './tokens';
-
-type Preference = ColorScheme | 'system';
-
-interface Theme {
-  scheme: ColorScheme;
-  c: ThemeColors;
-  spacing: typeof spacing;
-  radius: typeof radius;
-  type: typeof typography;
-  motion: typeof motion;
-  preference: Preference;
-  setPreference: (p: Preference) => void;
-}
-
-const ThemeContext = createContext<Theme | null>(null);
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { ThemeContext, type Theme } from './ThemeContext';
+import { colors, motion, radius, spacing, typography, type ColorScheme } from './tokens';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const system = useColorScheme();
-  const [preference, setPreference] = useState<Preference>('system');
+  // Persistido: la elección del usuario sobrevive a reinicios.
+  const preference = useSettingsStore((st) => st.theme);
+  const setPreference = useSettingsStore((st) => st.setTheme);
   const scheme: ColorScheme = preference === 'system' ? (system === 'dark' ? 'dark' : 'light') : preference;
 
   const value = useMemo<Theme>(
     () => ({ scheme, c: colors[scheme], spacing, radius, type: typography, motion, preference, setPreference }),
-    [scheme, preference],
+    [scheme, preference, setPreference],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
-}
-
-export function useTheme(): Theme {
-  const theme = useContext(ThemeContext);
-  if (!theme) throw new Error('useTheme debe usarse dentro de <ThemeProvider>');
-  return theme;
 }

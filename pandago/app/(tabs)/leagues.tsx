@@ -1,5 +1,3 @@
-import { ComingSoon } from '@/components/ComingSoon';
+import { LeaguesScreen } from '@/features/leagues/LeaguesScreen';
 
-export default function Screen() {
-  return <ComingSoon title="Ligas" />;
-}
+export default LeaguesScreen;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { useRouter } from 'expo-router';
+import { exitTo } from '@/lib/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bao } from '@/components/mascot';
 import { Button3D } from '@/components/ui';
@@ -118,7 +119,7 @@ export function ChatScreen({ scenario }: { scenario: Scenario }) {
             {busy ? 'Bao está escribiendo…' : `🎯 ${scenario.goal}`}
           </Text>
         </View>
-        <Text style={[type.caption, { color: c.xpLip }]}>+{state.xpEarned} XP</Text>
+        <Text style={[type.caption, { color: c.xpText }]}>+{state.xpEarned} XP</Text>
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -132,7 +133,7 @@ export function ChatScreen({ scenario }: { scenario: Scenario }) {
         />
         <View style={[styles.footer, { borderTopColor: c.border, padding: spacing.md, backgroundColor: c.surface }]}>
           {state.phase === 'finished' ? (
-            <Button3D label={`¡Completado! +${state.xpEarned} XP`} variant="success" onPress={() => router.back()} />
+            <Button3D label={`¡Completado! +${state.xpEarned} XP`} variant="success" onPress={() => exitTo(router)} />
           ) : state.phase === 'error' ? (
             <Button3D label="Reintentar" onPress={() => void send(null)} />
           ) : (

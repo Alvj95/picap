@@ -1,5 +1,3 @@
-import { ComingSoon } from '@/components/ComingSoon';
+import { ProfileScreen } from '@/features/profile/ProfileScreen';
 
-export default function Screen() {
-  return <ComingSoon title="Perfil" />;
-}
+export default ProfileScreen;

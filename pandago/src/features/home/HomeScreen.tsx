@@ -6,6 +6,8 @@ import { BaoBubble } from '@/components/mascot';
 import { HSK1_UNITS } from '@/data/hsk/hsk1.sample';
 import type { LessonNode } from '@/data/hsk/types';
 import { feedback } from '@/lib/haptics';
+import { dueItems } from '@/features/learning/adaptive/srs';
+import { useLearnerStore } from '@/store/useLearnerStore';
 import { useProgressStore } from '@/store/useProgressStore';
 import { useTheme } from '@/theme';
 import { DailyGoalCard } from './components/DailyGoalCard';
@@ -27,6 +29,9 @@ export function HomeScreen() {
   const tick = useProgressStore((s) => s.tick);
   const openChest = useProgressStore((s) => s.openChest);
   const [showTip, setShowTip] = useState(true);
+  const learner = useLearnerStore((s) => s.model);
+  const [now] = useState(() => Date.now());
+  const dueCount = dueItems(learner, now).length;
 
   // Regenera vidas / evalúa la racha cada vez que se monta la Home.
   useEffect(() => tick(), [tick]);
@@ -52,7 +57,7 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <DailyGoalCard />
-        <QuickActions onPress={(key) => router.push(key === 'review' ? '/review' : { pathname: '/chat', params: { mode: key } })} />
+        <QuickActions dueCount={dueCount} onPress={(key) => router.push(key === 'review' ? '/review' : { pathname: '/chat', params: { mode: key } })} />
         <LeagueChestRow onOpenLeague={() => router.push('/leagues')} onOpenChest={handleChest} />
         {showTip && (
           <View onTouchEnd={() => setShowTip(false)}>

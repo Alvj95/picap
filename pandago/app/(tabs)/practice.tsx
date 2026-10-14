@@ -1,5 +1,3 @@
-import { ComingSoon } from '@/components/ComingSoon';
+import { PracticeScreen } from '@/features/practice/PracticeScreen';
 
-export default function Screen() {
-  return <ComingSoon title="Hablar" />;
-}
+export default PracticeScreen;

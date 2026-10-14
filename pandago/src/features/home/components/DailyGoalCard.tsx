@@ -27,7 +27,7 @@ export function DailyGoalCard() {
             <View style={styles.flex}>
               <ProgressBar progress={xpToday / dailyGoalXp} color={c.xp} />
             </View>
-            <Text style={[type.caption, { color: c.xpLip }]}>
+            <Text style={[type.caption, { color: c.xpText }]}>
               {Math.min(xpToday, dailyGoalXp)}/{dailyGoalXp} XP
             </Text>
           </View>

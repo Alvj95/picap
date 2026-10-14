@@ -41,7 +41,7 @@ type ColorRole =
   | 'primary' | 'primaryLip' | 'primarySoft'
   | 'success' | 'successLip' | 'successSoft'
   | 'danger' | 'dangerLip' | 'dangerSoft'
-  | 'xp' | 'xpLip' | 'streak' | 'league' | 'info' | 'locked' | 'lockedLip' | 'shadow';
+  | 'xp' | 'xpLip' | 'xpText' | 'streak' | 'league' | 'info' | 'locked' | 'lockedLip' | 'shadow';
 
 const light: Record<ColorRole, string> = {
   background: palette.cloud100,
@@ -63,6 +63,7 @@ const light: Record<ColorRole, string> = {
   dangerSoft: palette.cherry100,
   xp: palette.gold500,
   xpLip: palette.gold600,
+  xpText: '#946500', // dorado con contraste AA (≥4.5:1) sobre fondo claro
   streak: palette.flame500,
   league: palette.violet500,
   info: palette.sky500,
@@ -91,6 +92,7 @@ const dark: Record<ColorRole, string> = {
   dangerSoft: 'rgba(255,75,92,0.16)',
   xp: palette.gold500,
   xpLip: '#A87800',
+  xpText: palette.gold500,
   streak: palette.flame500,
   league: palette.violet500,
   info: palette.sky500,

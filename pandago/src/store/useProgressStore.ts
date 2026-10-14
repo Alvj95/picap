@@ -2,12 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { HskLevel, LessonNode } from '@/data/hsk/types';
+import type { League } from '@/features/leagues/leaderboard';
 
 export const MAX_HEARTS = 5;
 const HEART_REGEN_MS = 30 * 60 * 1000; // 1 vida cada 30 min
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type League = 'Bambú' | 'Jade' | 'Seda' | 'Linterna' | 'Dragón' | 'Emperador';
 
 export interface ProgressState {
   hskLevel: HskLevel;
@@ -21,15 +21,17 @@ export interface ProgressState {
   heartsUpdatedAt: number;
   gems: number;
   league: League;
-  leagueRank: number;
   leagueWeeklyXp: number;
   completedNodeIds: string[];
   /** Cofres ganados pendientes de abrir. */
   pendingChests: number;
 
   awardXp: (amount: number) => void;
+  setDailyGoal: (xp: number) => void;
   loseHeart: () => void;
   refillHearts: () => void;
+  /** Devuelve false si no hay gemas suficientes. */
+  spendGems: (amount: number) => boolean;
   completeNode: (node: LessonNode) => void;
   openChest: () => { gems: number; xpBoostMinutes: number } | null;
   /** Llamar al abrir la app: regenera vidas y rompe/conserva la racha. */
@@ -52,7 +54,6 @@ export const useProgressStore = create<ProgressState>()(
       heartsUpdatedAt: Date.now(),
       gems: 100,
       league: 'Bambú',
-      leagueRank: 12,
       leagueWeeklyXp: 0,
       completedNodeIds: [],
       pendingChests: 0,
@@ -71,9 +72,17 @@ export const useProgressStore = create<ProgressState>()(
         });
       },
 
+      setDailyGoal: (xp) => set({ dailyGoalXp: xp }),
+
       loseHeart: () => set((s) => ({ hearts: Math.max(0, s.hearts - 1), heartsUpdatedAt: s.hearts === MAX_HEARTS ? Date.now() : s.heartsUpdatedAt })),
 
       refillHearts: () => set({ hearts: MAX_HEARTS, heartsUpdatedAt: Date.now() }),
+
+      spendGems: (amount) => {
+        if (get().gems < amount) return false;
+        set((s) => ({ gems: s.gems - amount }));
+        return true;
+      },
 
       completeNode: (node) =>
         set((s) => {

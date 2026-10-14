@@ -10,14 +10,14 @@ interface Action {
   tone: 'primary' | 'info' | 'success';
 }
 
-const ACTIONS: Action[] = [
+const actions = (dueCount: number): Action[] => [
   { key: 'chat', icon: '💬', title: 'Charla IA', subtitle: 'Con Bao', tone: 'primary' },
   { key: 'voice', icon: '🎙️', title: 'Pronuncia', subtitle: 'Tonos en vivo', tone: 'info' },
-  { key: 'review', icon: '🧠', title: 'Repaso', subtitle: '12 palabras', tone: 'success' },
+  { key: 'review', icon: '🧠', title: 'Repaso', subtitle: dueCount ? `${dueCount} palabras` : 'Adaptativo', tone: 'success' },
 ];
 
 /** Accesos rápidos a los modos clave, con el módulo de conversación IA destacado primero. */
-export function QuickActions({ onPress }: { onPress: (key: string) => void }) {
+export function QuickActions({ onPress, dueCount }: { onPress: (key: string) => void; dueCount: number }) {
   const { c, radius, type, spacing } = useTheme();
   const tones = {
     primary: [c.primarySoft, c.primary],
@@ -27,7 +27,7 @@ export function QuickActions({ onPress }: { onPress: (key: string) => void }) {
 
   return (
     <View style={[styles.row, { gap: spacing.sm }]}>
-      {ACTIONS.map((a) => {
+      {actions(dueCount).map((a) => {
         const [bg, fg] = tones[a.tone];
         return (
           <PressableScale

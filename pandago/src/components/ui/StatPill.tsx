@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, Text } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useTheme } from '@/theme';
 import { PressableScale } from './PressableScale';
 
@@ -20,7 +20,7 @@ export function StatPill({ icon, value, color, label, onPress }: Props) {
 
   useEffect(() => {
     if (previous.current !== value) {
-      scale.set(withSequence(withSpring(1.35, { damping: 6, stiffness: 300 }), withSpring(1)));
+      scale.set(withSequence(withTiming(1.35, { duration: 120 }), withSpring(1, { damping: 18, stiffness: 260, mass: 1 })));
       previous.current = value;
     }
   }, [value, scale]);

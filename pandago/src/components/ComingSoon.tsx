@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { exitTo } from '@/lib/navigation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BaoBubble } from '@/components/mascot';
 import { Button3D } from '@/components/ui';
@@ -14,7 +15,7 @@ export function ComingSoon({ title }: { title: string }) {
       <View style={styles.flex}>
         <BaoBubble message="¡Estoy preparando esta sección! Vuelve pronto 🎋" mood="thinking" />
       </View>
-      {router.canGoBack() && <Button3D label="Volver" variant="ghost" onPress={() => router.back()} />}
+      <Button3D label="Volver" variant="ghost" onPress={() => exitTo(router)} />
     </SafeAreaView>
   );
 }

@@ -2,13 +2,16 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useEffect } from 'react';
 import { Card, PressableScale } from '@/components/ui';
+import { useLeagueStanding } from '@/features/leagues/useLeagueStanding';
+import { LEAGUE_STYLE } from '@/features/leagues/leaderboard';
 import { useProgressStore } from '@/store/useProgressStore';
 import { useTheme } from '@/theme';
 
 /** Fila con la liga semanal y el cofre de recompensas (que se agita si hay alguno pendiente). */
 export function LeagueChestRow({ onOpenLeague, onOpenChest }: { onOpenLeague: () => void; onOpenChest: () => void }) {
   const { c, type, spacing } = useTheme();
-  const { league, leagueRank, leagueWeeklyXp, pendingChests } = useProgressStore();
+  const pendingChests = useProgressStore((s) => s.pendingChests);
+  const { league, rank: leagueRank, xp: leagueWeeklyXp } = useLeagueStanding();
   const wiggle = useSharedValue(0);
 
   useEffect(() => {
@@ -24,7 +27,7 @@ export function LeagueChestRow({ onOpenLeague, onOpenChest }: { onOpenLeague: ()
         <Card index={1}>
           <Text style={[type.caption, { color: c.textSecondary }]}>LIGA {league.toUpperCase()}</Text>
           <View style={[styles.row, { gap: spacing.xs, marginTop: 4 }]}>
-            <Text style={styles.emoji}>🏮</Text>
+            <Text style={styles.emoji}>{LEAGUE_STYLE[league].icon}</Text>
             <View>
               <Text style={[type.title, { color: c.league }]}>#{leagueRank}</Text>
               <Text style={[type.caption, { color: c.textSecondary }]}>{leagueWeeklyXp} XP semanal</Text>
@@ -38,7 +41,7 @@ export function LeagueChestRow({ onOpenLeague, onOpenChest }: { onOpenLeague: ()
           <View style={[styles.row, { gap: spacing.xs, marginTop: 4 }]}>
             <Animated.Text style={[styles.emoji, wiggleStyle]}>🎁</Animated.Text>
             <View>
-              <Text style={[type.title, { color: c.xpLip }]}>{pendingChests}</Text>
+              <Text style={[type.title, { color: c.xpText }]}>{pendingChests}</Text>
               <Text style={[type.caption, { color: c.textSecondary }]}>{pendingChests ? '¡Ábrelo!' : 'Sigue avanzando'}</Text>
             </View>
           </View>

@@ -56,8 +56,8 @@ export function BaoFace({ mood, size }: { mood: BaoMood; size: number }) {
           <Circle cx={80.5} cy={61} r={2.5} fill="#fff" />
           {sad && (
             <G>
-              <Path d="M32 52 L48 56" stroke={INK} strokeWidth={3} strokeLinecap="round" />
-              <Path d="M88 52 L72 56" stroke={INK} strokeWidth={3} strokeLinecap="round" />
+              <Path d="M32 54 Q40 52 47 47" stroke={INK} strokeWidth={3} strokeLinecap="round" fill="none" />
+              <Path d="M88 54 Q80 52 73 47" stroke={INK} strokeWidth={3} strokeLinecap="round" fill="none" />
             </G>
           )}
         </G>
