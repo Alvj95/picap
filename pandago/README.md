@@ -138,7 +138,7 @@ Implementada en `src/store/useProgressStore.ts`:
 Necesitas **Node.js 20 o superior** y el código de la rama `claude/happy-shannon-hyds8v`:
 
 ```bash
-git clone https://github.com/josealvarado0494-jpg/picap.git
+git clone https://github.com/Alvj95/picap.git
 cd picap && git checkout claude/happy-shannon-hyds8v
 cd pandago && npm install
 ```
