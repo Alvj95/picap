@@ -133,23 +133,42 @@ Implementada en `src/store/useProgressStore.ts`:
 - **Ligas semanales** (Bambú → Jade → Seda → Linterna → Dragón → Emperador): grupos de 20, los 5 primeros ascienden y los 5 últimos descienden. Hoy los rivales se simulan de forma determinista por semana; en producción la clasificación viene del servidor.
 - **Cofres** con recompensa variable (refuerzo intermitente) y un mínimo garantizado.
 
-## Ejecutar
+## Cómo probarla
+
+Necesitas **Node.js 20 o superior** y el código de la rama `claude/happy-shannon-hyds8v`:
 
 ```bash
-# App
-cd pandago
-npm install
-npx expo start            # escanea el QR con Expo Go o usa un emulador
-npm run typecheck
-npm test                  # 20 pruebas: lecciones, trazos, tonos, chat, ligas
-
-# Backend del tutor
-cd pandago/server
-npm install
-ANTHROPIC_API_KEY=... npm run dev   # http://localhost:8787
+git clone https://github.com/josealvarado0494-jpg/picap.git
+cd picap && git checkout claude/happy-shannon-hyds8v
+cd pandago && npm install
 ```
 
-Configura la URL del backend en `app.json` → `expo.extra.apiUrl` (por defecto `http://localhost:8787`).
+**En el navegador (lo más rápido):**
+
+```bash
+npm run web               # abre http://localhost:8081 — usa la vista móvil de DevTools (F12)
+```
+
+**En tu móvil con Expo Go:** instala *Expo Go* (Play Store / App Store), y en el ordenador:
+
+```bash
+npx expo start            # escanea el QR (Android: desde Expo Go; iPhone: con la cámara)
+npx expo start --tunnel   # si el móvil no está en la misma Wi-Fi
+```
+
+**En un emulador:** `npm run android` (Android Studio) o `npm run ios` (Xcode, solo macOS).
+
+Todo funciona sin servidor (lecciones, escritura, ligas, perfil, tema) **excepto el chat con Bao**, que necesita el backend:
+
+```bash
+cd pandago/server && npm install
+ANTHROPIC_API_KEY=tu_clave npm run dev   # http://localhost:8787
+```
+
+Desde un móvil, `localhost` es el propio móvil: pon la IP de tu ordenador en `app.json` → `expo.extra.apiUrl` (p. ej. `http://192.168.1.50:8787`).
+
+Comprobaciones: `npm run typecheck` · `npm test` (20 pruebas).
+
 
 ## Qué falta para producción
 
