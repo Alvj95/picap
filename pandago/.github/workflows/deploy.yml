@@ -1,0 +1,50 @@
+# Comprueba la app y publica la versión web en GitHub Pages en cada push a main.
+# Requisito (una vez): Settings → Pages → Source: "GitHub Actions".
+name: Deploy web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Export web
+        run: npx expo export --platform web --output-dir dist
+        env:
+          # La web se sirve en https://<usuario>.github.io/<repo>/
+          EXPO_BASE_URL: /${{ github.event.repository.name }}
+      # GitHub Pages no conoce las rutas de la app: 404.html carga la app y el router resuelve la ruta.
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

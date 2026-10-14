@@ -2,6 +2,10 @@
 
 App móvil gamificada para aprender mandarín (HSK 1 → 6) con **Bao**, un panda rojo guía, y un **tutor de conversación con IA** que corrige con empatía, propone huecos y evalúa tu pronunciación y tus tonos.
 
+### ▶️ Pruébala ya: **https://alvj95.github.io/pandago/**
+
+Ábrela en el navegador del móvil o del ordenador (en el ordenador, F12 → vista de móvil). Para instalarla en el móvil: menú del navegador → *Añadir a pantalla de inicio*.
+
 | Home (claro) | Camino de aprendizaje (oscuro) | Chat con Bao |
 | --- | --- | --- |
 | ![Home](docs/screenshots/home-light.png) | ![Camino](docs/screenshots/home-dark-path.png) | ![Chat](docs/screenshots/chat-light.png) |
@@ -135,12 +139,14 @@ Implementada en `src/store/useProgressStore.ts`:
 
 ## Cómo probarla
 
-Necesitas **Node.js 20 o superior** y el código de la rama `claude/happy-shannon-hyds8v`:
+**Sin instalar nada:** abre **https://alvj95.github.io/pandago/** (se vuelve a publicar sola en cada push a `main`).
+
+**En tu ordenador** (necesitas [Node.js](https://nodejs.org) 20 o superior):
 
 ```bash
-git clone https://github.com/Alvj95/picap.git
-cd picap && git checkout claude/happy-shannon-hyds8v
-cd pandago && npm install
+git clone https://github.com/Alvj95/pandago.git
+cd pandago
+npm install
 ```
 
 **En el navegador (lo más rápido):**
@@ -161,7 +167,7 @@ npx expo start --tunnel   # si el móvil no está en la misma Wi-Fi
 Todo funciona sin servidor (lecciones, escritura, ligas, perfil, tema) **excepto el chat con Bao**, que necesita el backend:
 
 ```bash
-cd pandago/server && npm install
+cd server && npm install
 ANTHROPIC_API_KEY=tu_clave npm run dev   # http://localhost:8787
 ```
 
@@ -169,6 +175,10 @@ Desde un móvil, `localhost` es el propio móvil: pon la IP de tu ordenador en `
 
 Comprobaciones: `npm run typecheck` · `npm test` (20 pruebas).
 
+
+## Publicación web (GitHub Pages)
+
+`.github/workflows/deploy.yml` comprueba tipos y pruebas, exporta la web con la subruta del repositorio (`EXPO_BASE_URL`) y la publica en GitHub Pages en cada push a `main`. Hay que activarlo una vez en **Settings → Pages → Source: GitHub Actions**. En la web el chat con Bao necesita un backend público: define `EXPO_PUBLIC_API_URL` en el workflow cuando lo tengas desplegado.
 
 ## Qué falta para producción
 
