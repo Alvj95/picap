@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "PandaGO!",
+    "slug": "pandago",
+    "scheme": "pandago",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.pandago",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "PandaGO! usa el micrófono para evaluar tu pronunciación del chino."
+      }
+    },
+    "android": {
+      "package": "app.pandago",
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-audio",
+      "expo-splash-screen"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": "http://localhost:8787"
+    }
+  }
+}
