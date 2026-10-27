@@ -126,17 +126,15 @@ function VistaLiquidacion({ tasa }: { tasa: number }) {
   const enBs = (n: number) => (moneda === 'VES' ? n : n * tasa)
   const enUsd = (n: number) => (moneda === 'USD' ? n : tasa ? n / tasa : 0)
 
-  const compartir = () => {
-    if (!liq) return
-    const lineas = [
-      `*Liquidación LOTTT* — ${trabajador || 'Trabajador'}`,
-      `Antigüedad: ${liq.antiguedad.anios} años, ${liq.antiguedad.meses} meses, ${liq.antiguedad.dias} días`,
-      ...liq.conceptos.map((c) => `• ${c.concepto}: ${formatoBs(enBs(c.monto))} (${formatoUsd(enUsd(c.monto))})`),
-      `*Total: ${formatoBs(enBs(liq.total))} (${formatoUsd(enUsd(liq.total))})*`,
-      `Tasa BCV: ${formatoBs(tasa)}`,
-    ]
-    window.open(`https://wa.me/?text=${encodeURIComponent(lineas.join('\n'))}`, '_blank')
-  }
+  const resumenWhatsApp = liq
+    ? [
+        `*Liquidación LOTTT* — ${trabajador || 'Trabajador'}`,
+        `Antigüedad: ${liq.antiguedad.anios} años, ${liq.antiguedad.meses} meses, ${liq.antiguedad.dias} días`,
+        ...liq.conceptos.map((c) => `• ${c.concepto}: ${formatoBs(enBs(c.monto))} (${formatoUsd(enUsd(c.monto))})`),
+        `*Total: ${formatoBs(enBs(liq.total))} (${formatoUsd(enUsd(liq.total))})*`,
+        `Tasa BCV: ${formatoBs(tasa)}`,
+      ].join('\n')
+    : ''
 
   return (
     <>
@@ -190,44 +188,47 @@ function VistaLiquidacion({ tasa }: { tasa: number }) {
             </ul>
             <div className="acciones">
               <button className="btn" onClick={() => window.print()} type="button">Imprimir / guardar PDF</button>
-              <button className="btn-sec" onClick={compartir} type="button">Enviar por WhatsApp</button>
+              <a className="btn-sec" href={`https://wa.me/?text=${encodeURIComponent(resumenWhatsApp)}`} target="_blank" rel="noreferrer">Enviar por WhatsApp</a>
             </div>
             <p className="nota">Cálculo referencial con el último salario. No incluye intereses sobre prestaciones (art. 143) ni anticipos ya pagados. Los bonos no salariales (cestaticket, bono de guerra) no forman parte del salario.</p>
           </section>
 
-          <article className="documento">
-            <h1>Finiquito y liquidación de prestaciones sociales</h1>
-            <p className="doc-lugar">Venezuela, {fechaLarga(egreso)}</p>
-            <table className="doc-datos">
-              <tbody>
-                <tr><th>Trabajador(a)</th><td>{trabajador || '________________'}</td><th>Cédula</th><td>{cedula || '__________'}</td></tr>
-                <tr><th>Patrono</th><td>{patrono || '________________'}</td><th>RIF</th><td>{rif || '__________'}</td></tr>
-                <tr><th>Cargo</th><td>{cargo || '—'}</td><th>Motivo</th><td>{MOTIVOS[motivo]}</td></tr>
-                <tr><th>Ingreso</th><td>{fechaLarga(ingreso)}</td><th>Egreso</th><td>{fechaLarga(egreso)}</td></tr>
-                <tr><th>Antigüedad</th><td colSpan={3}>{liq.antiguedad.anios} años, {liq.antiguedad.meses} meses y {liq.antiguedad.dias} días</td></tr>
-                <tr><th>Salario mensual</th><td>{formatoBs(enBs(salarioN))}{tasa ? ` (${formatoUsd(enUsd(salarioN))})` : ''}</td><th>Salario integral diario</th><td>{formatoBs(enBs(liq.salarioIntegral))}</td></tr>
-              </tbody>
-            </table>
-            <table className="doc-tabla">
-              <thead><tr><th>Concepto</th><th>Días</th><th>Monto Bs.</th><th>Ref. US$</th></tr></thead>
-              <tbody>
-                {liq.conceptos.map((c) => (
-                  <tr key={c.concepto}><td>{c.concepto}<small>{c.detalle}</small></td><td>{c.dias.toLocaleString('es-VE')}</td><td>{formatoBs(enBs(c.monto))}</td><td>{tasa ? formatoUsd(enUsd(c.monto)) : '—'}</td></tr>
-                ))}
-              </tbody>
-              <tfoot><tr><td colSpan={2}>Total</td><td>{formatoBs(enBs(liq.total))}</td><td>{tasa ? formatoUsd(enUsd(liq.total)) : '—'}</td></tr></tfoot>
-            </table>
-            <p>
-              Recibí de <b>{patrono || '________________'}</b> la cantidad de <b>{numeroALetras(enBs(liq.total), BOLIVARES)}</b> ({formatoBs(enBs(liq.total))})
-              {tasa ? <>, equivalentes a {numeroALetras(enUsd(liq.total), DOLARES)} ({formatoUsd(enUsd(liq.total))}) a la tasa oficial del BCV de {formatoBs(tasa)} por dólar,</> : ','}{' '}
-              por concepto de liquidación de prestaciones sociales y demás beneficios laborales conforme a la LOTTT.
-            </p>
-            <div className="firmas">
-              <div><span />{trabajador || 'Trabajador(a)'}<small>C.I. {cedula}</small></div>
-              <div><span />{patrono || 'Patrono'}<small>RIF {rif}</small></div>
-            </div>
-            <p className="marca">Generado con LiquidaYa</p>
-          </article>
+          <h2 className="titulo-doc no-print">Vista previa del finiquito</h2>
+          <div className="documento-marco">
+            <article className="documento">
+              <h1>Finiquito y liquidación de prestaciones sociales</h1>
+              <p className="doc-lugar">Venezuela, {fechaLarga(egreso)}</p>
+              <table className="doc-datos">
+                <tbody>
+                  <tr><th>Trabajador(a)</th><td>{trabajador || '________________'}</td><th>Cédula</th><td>{cedula || '__________'}</td></tr>
+                  <tr><th>Patrono</th><td>{patrono || '________________'}</td><th>RIF</th><td>{rif || '__________'}</td></tr>
+                  <tr><th>Cargo</th><td>{cargo || '—'}</td><th>Motivo</th><td>{MOTIVOS[motivo]}</td></tr>
+                  <tr><th>Ingreso</th><td>{fechaLarga(ingreso)}</td><th>Egreso</th><td>{fechaLarga(egreso)}</td></tr>
+                  <tr><th>Antigüedad</th><td colSpan={3}>{liq.antiguedad.anios} años, {liq.antiguedad.meses} meses y {liq.antiguedad.dias} días</td></tr>
+                  <tr><th>Salario mensual</th><td>{formatoBs(enBs(salarioN))}{tasa ? ` (${formatoUsd(enUsd(salarioN))})` : ''}</td><th>Salario integral diario</th><td>{formatoBs(enBs(liq.salarioIntegral))}</td></tr>
+                </tbody>
+              </table>
+              <table className="doc-tabla">
+                <thead><tr><th>Concepto</th><th>Días</th><th>Monto Bs.</th><th>Ref. US$</th></tr></thead>
+                <tbody>
+                  {liq.conceptos.map((c) => (
+                    <tr key={c.concepto}><td>{c.concepto}<small>{c.detalle}</small></td><td>{c.dias.toLocaleString('es-VE')}</td><td>{formatoBs(enBs(c.monto))}</td><td>{tasa ? formatoUsd(enUsd(c.monto)) : '—'}</td></tr>
+                  ))}
+                </tbody>
+                <tfoot><tr><td colSpan={2}>Total</td><td>{formatoBs(enBs(liq.total))}</td><td>{tasa ? formatoUsd(enUsd(liq.total)) : '—'}</td></tr></tfoot>
+              </table>
+              <p>
+                Recibí de <b>{patrono || '________________'}</b> la cantidad de <b>{numeroALetras(enBs(liq.total), BOLIVARES)}</b> ({formatoBs(enBs(liq.total))})
+                {tasa ? <>, equivalentes a {numeroALetras(enUsd(liq.total), DOLARES)} ({formatoUsd(enUsd(liq.total))}) a la tasa oficial del BCV de {formatoBs(tasa)} por dólar,</> : ','}{' '}
+                por concepto de liquidación de prestaciones sociales y demás beneficios laborales conforme a la LOTTT.
+              </p>
+              <div className="firmas">
+                <div><span />{trabajador || 'Trabajador(a)'}<small>C.I. {cedula}</small></div>
+                <div><span />{patrono || 'Patrono'}<small>RIF {rif}</small></div>
+              </div>
+              <p className="marca">Generado con LiquidaYa</p>
+            </article>
+          </div>
         </>
       )}
     </>
