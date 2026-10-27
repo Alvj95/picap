@@ -32,6 +32,13 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+      - name: Build LiquidaYa VE (served at /liquida-ve/)
+        working-directory: apps/liquida-ve
+        run: |
+          npm install --no-audit --no-fund
+          npm test
+          npm run build
+          cp -r dist ../../dist/liquida-ve
       - name: Mirror latest APK on the site
         env:
           GH_TOKEN: ${{ github.token }}

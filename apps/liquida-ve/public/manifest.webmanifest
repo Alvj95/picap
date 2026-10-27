@@ -1,0 +1,11 @@
+{
+  "name": "Cuenta Clara",
+  "short_name": "Cuenta Clara",
+  "description": "Cuentas de cobro para contratistas en 1 minuto",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f5",
+  "theme_color": "#0f5132",
+  "lang": "es-CO",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
