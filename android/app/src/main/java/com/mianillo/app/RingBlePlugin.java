@@ -15,10 +15,15 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.provider.Settings;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -29,6 +34,7 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.util.ArrayDeque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -58,6 +64,10 @@ public class RingBlePlugin extends Plugin {
 
     private final Handler main = new Handler(Looper.getMainLooper());
 
+    /** The live plugin, so the notification listener can reach the ring while the app is in the background. */
+    static volatile RingBlePlugin instance;
+    static final String PREFS = "ring_notify";
+
     private BluetoothLeScanner scanner;
     private ScanCallback scanCallback;
     private PluginCall scanCall;
@@ -71,6 +81,11 @@ public class RingBlePlugin extends Plugin {
     /** GATT allows one outstanding operation at a time, so writes (and CCCD setup) go through this queue. */
     private final ArrayDeque<Runnable> queue = new ArrayDeque<>();
     private boolean busy = false;
+
+    @Override
+    public void load() {
+        instance = this;
+    }
 
     // ---------- permissions ----------
 
@@ -401,6 +416,82 @@ public class RingBlePlugin extends Plugin {
     protected void handleOnDestroy() {
         stopScanInternal();
         closeGatt();
+        if (instance == this) instance = null;
+    }
+
+    // ---------- phone notifications -> ring ----------
+
+    static byte[] packet(int... bytes) {
+        byte[] p = new byte[16];
+        int sum = 0;
+        for (int i = 0; i < Math.min(15, bytes.length); i++) p[i] = (byte) bytes[i];
+        for (int i = 0; i < 15; i++) sum += p[i] & 0xff;
+        p[15] = (byte) sum;
+        return p;
+    }
+
+    /** Called from RingNotificationListener. Returns false when the ring is not connected. */
+    boolean sendFromNative(byte[] data) {
+        BluetoothGatt g = gatt;
+        BluetoothGattCharacteristic ch = mainWrite;
+        if (g == null || ch == null) return false;
+        enqueue(() -> {
+            if (!writeChar(g, ch, data)) next();
+        });
+        return true;
+    }
+
+    void reportPhoneNotification(String app, String kind, boolean delivered) {
+        JSObject ev = new JSObject();
+        ev.put("app", app);
+        ev.put("kind", kind);
+        ev.put("delivered", delivered);
+        notifyListeners("phoneNotification", ev);
+    }
+
+    private boolean hasNotificationAccess() {
+        String flat = Settings.Secure.getString(getContext().getContentResolver(), "enabled_notification_listeners");
+        ComponentName me = new ComponentName(getContext(), RingNotificationListener.class);
+        return flat != null && flat.contains(me.flattenToString());
+    }
+
+    @PluginMethod
+    public void getNotifyConfig(PluginCall call) {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        JSObject ret = new JSObject();
+        ret.put("enabled", sp.getBoolean("enabled", false));
+        ret.put("strong", sp.getBoolean("strong", true));
+        JSArray kinds = new JSArray();
+        for (String k : sp.getStringSet("kinds", RingNotificationListener.DEFAULT_KINDS)) kinds.put(k);
+        ret.put("kinds", kinds);
+        ret.put("access", hasNotificationAccess());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setNotifyConfig(PluginCall call) {
+        SharedPreferences.Editor e = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
+        if (call.hasOption("enabled")) e.putBoolean("enabled", Boolean.TRUE.equals(call.getBoolean("enabled")));
+        if (call.hasOption("strong")) e.putBoolean("strong", Boolean.TRUE.equals(call.getBoolean("strong")));
+        JSArray kinds = call.getArray("kinds");
+        if (kinds != null) {
+            Set<String> set = new HashSet<>();
+            try {
+                List<String> list = kinds.toList();
+                set.addAll(list);
+            } catch (Exception ignored) {}
+            e.putStringSet("kinds", set);
+        }
+        e.apply();
+        getNotifyConfig(call);
+    }
+
+    @PluginMethod
+    public void openNotificationSettings(PluginCall call) {
+        Intent i = new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS");
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+        call.resolve();
     }
 
     // ---------- hex helpers ----------

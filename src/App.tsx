@@ -16,8 +16,11 @@ import {
   IconSettings,
   IconShoe,
 } from './Icons'
+import { BreatheScreen } from './Breathe'
+import { CameraScreen } from './Camera'
+import { AwardsScreen, StreakChip, WeekSummary } from './Insights'
 import { WorkoutTab } from './Workout'
-import { bluetoothAvailable, isNative, toHex, transport, type FoundDevice } from './lib/ble'
+import { bluetoothAvailable, isNative, phoneNotifications, toHex, transport, type FoundDevice, type NotifyConfig, type NotifyKind } from './lib/ble'
 import { ring, type Reading } from './lib/ring'
 import { shareText } from './lib/share'
 import {
@@ -36,6 +39,15 @@ import {
 
 type Status = 'idle' | 'scanning' | 'connecting' | 'connected'
 type Tab = 'hoy' | 'entreno' | 'historial' | 'ajustes'
+type Screen = 'camera' | 'breathe' | 'awards'
+const NOTIFY_KINDS: [NotifyKind, string][] = [
+  ['call', '📞 Llamadas'],
+  ['whatsapp', '💬 WhatsApp'],
+  ['sms', '✉️ SMS'],
+  ['social', '📱 Telegram, Instagram…'],
+  ['email', '📧 Correo'],
+  ['other', '🔔 Otras apps'],
+]
 const HISTORY_DAYS = 7
 const INTERVALS = [5, 10, 15, 30, 60]
 const WEEKDAY = new Intl.DateTimeFormat('es', { weekday: 'short' })
@@ -57,6 +69,9 @@ export default function App() {
   const [log, setLog] = useState<string[]>([])
   const [showLog, setShowLog] = useState(false)
   const [historyDay, setHistoryDay] = useState(0)
+  const [histMode, setHistMode] = useState<'dia' | 'semana'>('dia')
+  const [screen, setScreen] = useState<Screen>()
+  const [notifyCfg, setNotifyCfg] = useState<NotifyConfig>()
   const bigData = useRef(false)
   const settingsRef = useRef(settings)
   settingsRef.current = settings
@@ -76,6 +91,9 @@ export default function App() {
     const stamp = () => new Date().toLocaleTimeString('es', { hour12: false })
     ring.onPacket = (dir, ch, p) => setLog((l) => [`${stamp()} ${dir === 'in' ? '←' : '→'} ${ch} ${toHex(p)}`, ...l].slice(0, 300))
     ring.onUnsolicited = (ch, p) => setLog((l) => [`${stamp()} ★ evento del anillo ${ch} ${toHex(p)}`, ...l].slice(0, 300))
+    phoneNotifications?.onForward((n) =>
+      setLog((l) => [`${stamp()} 🔔 aviso ${n.kind} (${n.app}) ${n.delivered ? 'enviado al anillo' : 'anillo no conectado'}`, ...l].slice(0, 300)),
+    )
     transport.onDisconnect(() => {
       setStatus('idle')
       setLive(undefined)
@@ -210,6 +228,17 @@ export default function App() {
       fail(e)
     }
   }
+
+  // Notification-access status changes in Android settings, so re-read it whenever the app comes back.
+  useEffect(() => {
+    const pn = phoneNotifications
+    if (!pn) return
+    const refresh = () => void pn.get().then(setNotifyCfg, () => {})
+    refresh()
+    document.addEventListener('visibilitychange', refresh)
+    return () => document.removeEventListener('visibilitychange', refresh)
+  }, [])
+  const updateNotify = (c: Partial<Omit<NotifyConfig, 'access'>>) => void phoneNotifications?.set(c).then(setNotifyCfg, fail)
 
   const run = (fn: () => Promise<unknown>, ok?: string) => async () => {
     try {
@@ -366,6 +395,27 @@ export default function App() {
               </div>
             </section>
 
+            <StreakChip data={data} goal={settings.stepGoal} onClick={() => setScreen('awards')} />
+
+            <section className="tools">
+              <button onClick={() => setScreen('camera')}>
+                <span className="tool-icon cam">📸</span>
+                Cámara
+              </button>
+              <button onClick={() => setScreen('breathe')}>
+                <span className="tool-icon breath">🧘</span>
+                Respirar
+              </button>
+              <button onClick={() => setScreen('awards')}>
+                <span className="tool-icon award">🏆</span>
+                Logros
+              </button>
+              <button onClick={() => setTab('ajustes')}>
+                <span className="tool-icon bell">🔔</span>
+                Avisos
+              </button>
+            </section>
+
             <section className="grid2">
               <Metric
                 kind="hr"
@@ -437,6 +487,19 @@ export default function App() {
         )}
 
         {tab === 'historial' && (
+          <div className="seg two">
+            <button className={histMode === 'dia' ? 'on' : ''} onClick={() => setHistMode('dia')}>
+              Día
+            </button>
+            <button className={histMode === 'semana' ? 'on' : ''} onClick={() => setHistMode('semana')}>
+              Semana
+            </button>
+          </div>
+        )}
+
+        {tab === 'historial' && histMode === 'semana' && <WeekSummary data={data} settings={settings} />}
+
+        {tab === 'historial' && histMode === 'dia' && (
           <>
             <nav className="days">
               {Array.from({ length: HISTORY_DAYS }, (_, i) => {
@@ -554,6 +617,55 @@ export default function App() {
             </section>
 
             <section className="card">
+              <h2>Avisos del teléfono en el anillo</h2>
+              {!phoneNotifications ? (
+                <p className="muted small">Disponible solo en la app de Android.</p>
+              ) : !notifyCfg ? (
+                <p className="muted small">Cargando…</p>
+              ) : (
+                <>
+                  <label className="toggle">
+                    <span>
+                      Avisarme en el anillo
+                      <small>Cuando llegue una notificación, el anillo se enciende o vibra. Funciona con la app en segundo plano (no cerrada).</small>
+                    </span>
+                    <input type="checkbox" checked={notifyCfg.enabled} onChange={(e) => updateNotify({ enabled: e.target.checked })} />
+                  </label>
+                  {!notifyCfg.access && (
+                    <div className="callout">
+                      <p className="small">Android necesita que permitas a Mi Anillo leer las notificaciones (no se guardan ni se envían a ningún sitio).</p>
+                      <button className="btn primary" onClick={run(async () => phoneNotifications?.openSettings())}>
+                        Dar acceso a notificaciones
+                      </button>
+                    </div>
+                  )}
+                  <div className="chips">
+                    {NOTIFY_KINDS.map(([k, label]) => {
+                      const on = notifyCfg.kinds.includes(k)
+                      return (
+                        <button
+                          key={k}
+                          className={on ? 'chip on' : 'chip'}
+                          disabled={!notifyCfg.enabled}
+                          onClick={() => updateNotify({ kinds: on ? notifyCfg.kinds.filter((x) => x !== k) : [...notifyCfg.kinds, k] })}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <label className="toggle">
+                    <span>
+                      Aviso fuerte
+                      <small>Además usa “buscar anillo”, para que se note en cualquier modelo.</small>
+                    </span>
+                    <input type="checkbox" disabled={!notifyCfg.enabled} checked={notifyCfg.strong} onChange={(e) => updateNotify({ strong: e.target.checked })} />
+                  </label>
+                </>
+              )}
+            </section>
+
+            <section className="card">
               <h2>Alertas</h2>
               <label className="toggle">
                 <span>
@@ -622,7 +734,7 @@ export default function App() {
                 <button
                   className="btn danger"
                   onClick={() => {
-                    if (confirm('¿Borrar todo el historial guardado en el teléfono? Lo que siga en el anillo se puede volver a descargar.')) setData({ hr: {}, steps: {}, sleep: {}, spots: [], workouts: [] })
+                    if (confirm('¿Borrar todo el historial guardado en el teléfono? Lo que siga en el anillo se puede volver a descargar.')) setData({ hr: {}, steps: {}, sleep: {}, spots: [], workouts: [], breaths: [] })
                   }}
                 >
                   Borrar historial
@@ -656,6 +768,22 @@ export default function App() {
           </>
         )}
       </main>
+
+      {screen === 'camera' && (
+        <CameraScreen
+          connected={connected}
+          signature={settings.cameraSig}
+          onLearn={(sig) => {
+            setSettings((s) => ({ ...s, cameraSig: sig }))
+            info('Toque aprendido. Ahora el anillo dispara la cámara.')
+          }}
+          onClose={() => setScreen(undefined)}
+        />
+      )}
+      {screen === 'breathe' && (
+        <BreatheScreen connected={connected} onSave={(b) => setData((d) => ({ ...d, breaths: [...(d.breaths ?? []), b].slice(-500) }))} onClose={() => setScreen(undefined)} />
+      )}
+      {screen === 'awards' && <AwardsScreen data={data} settings={settings} onClose={() => setScreen(undefined)} />}
 
       <nav className="tabs">
         {(

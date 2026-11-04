@@ -47,11 +47,27 @@ interface RingBleNative {
   addListener(ev: 'device', cb: (d: FoundDevice) => void): Promise<PluginListenerHandle>
   addListener(ev: 'notify', cb: (d: { channel: Channel; value: string }) => void): Promise<PluginListenerHandle>
   addListener(ev: 'disconnected', cb: () => void): Promise<PluginListenerHandle>
+  addListener(ev: 'phoneNotification', cb: (d: { app: string; kind: string; delivered: boolean }) => void): Promise<PluginListenerHandle>
+  getNotifyConfig(): Promise<NotifyConfig>
+  setNotifyConfig(o: Partial<Omit<NotifyConfig, 'access'>>): Promise<NotifyConfig>
+  openNotificationSettings(): Promise<void>
 }
+
+export type NotifyKind = 'call' | 'whatsapp' | 'sms' | 'social' | 'email' | 'other'
+export interface NotifyConfig {
+  enabled: boolean
+  /** Also send "find ring" so every model reacts visibly. */
+  strong: boolean
+  kinds: NotifyKind[]
+  /** Android notification access granted to the app. */
+  access: boolean
+}
+
+const nativePlugin = registerPlugin<RingBleNative>('RingBle')
 
 class NativeTransport implements Transport {
   readonly chooser = false
-  private plugin = registerPlugin<RingBleNative>('RingBle')
+  private plugin = nativePlugin
   private notifyCbs: ((c: Channel, d: Uint8Array) => void)[] = []
   private discCbs: (() => void)[] = []
 
@@ -204,3 +220,13 @@ class WebTransport implements Transport {
 export const isNative = Capacitor.isNativePlatform()
 export const bluetoothAvailable = isNative || !!webBt()
 export const transport: Transport = isNative ? new NativeTransport() : new WebTransport()
+
+/** Phone-notification forwarding (Android app only; runs natively even in the background). */
+export const phoneNotifications = isNative
+  ? {
+      get: () => nativePlugin.getNotifyConfig(),
+      set: (c: Partial<Omit<NotifyConfig, 'access'>>) => nativePlugin.setNotifyConfig(c),
+      openSettings: () => nativePlugin.openNotificationSettings(),
+      onForward: (cb: (d: { app: string; kind: string; delivered: boolean }) => void) => void nativePlugin.addListener('phoneNotification', cb),
+    }
+  : null

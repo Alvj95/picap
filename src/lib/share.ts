@@ -1,19 +1,27 @@
 import { Capacitor } from '@capacitor/core'
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1])
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
 /**
- * Hands a text file (CSV export) to the OS: native share sheet in the Android app
- * (Drive, WhatsApp, email…), Web Share on mobile browsers, plain download elsewhere.
+ * Hands a file to the OS: native share sheet in the Android app (save to Photos/Drive, WhatsApp, email…),
+ * Web Share on mobile browsers, plain download elsewhere.
  */
-export async function shareText(text: string, filename: string, mime = 'text/csv') {
+export async function shareBlob(blob: Blob, filename: string) {
   if (Capacitor.isNativePlatform()) {
-    const [{ Filesystem, Directory, Encoding }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')])
-    const { uri } = await Filesystem.writeFile({ path: filename, data: text, directory: Directory.Cache, encoding: Encoding.UTF8 })
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')])
+    const { uri } = await Filesystem.writeFile({ path: filename, data: await blobToBase64(blob), directory: Directory.Cache })
     await Share.share({ title: 'Mi Anillo', files: [uri] })
     return
   }
 
-  const blob = new Blob([text], { type: mime })
-  const file = new File([blob], filename, { type: mime })
+  const file = new File([blob], filename, { type: blob.type })
   if (navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: 'Mi Anillo' })
@@ -30,3 +38,5 @@ export async function shareText(text: string, filename: string, mime = 'text/csv
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
+
+export const shareText = (text: string, filename: string, mime = 'text/csv') => shareBlob(new Blob([text], { type: `${mime};charset=utf-8` }), filename)

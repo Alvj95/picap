@@ -19,6 +19,11 @@ Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica 
 - **Hoy**: pasos con meta diaria, calorías, distancia, pulso y oxígeno.
 - **Medir ahora**: pulso (lpm) y SpO₂ (%) en tiempo real.
 - **Entreno con GPS** (del teléfono; el anillo no tiene GPS): caminar, correr o bici con mapa de la ruta (OpenStreetMap), distancia, tiempo, ritmo o velocidad, calorías y pulso del anillo durante el ejercicio. Historial de entrenos con su mapa.
+- **📸 Cámara remota**: haz fotos tocando el anillo. La app aprende el toque o gesto de tu anillo la primera vez. Incluye temporizador, cámara frontal/trasera y compartir o guardar en Fotos.
+- **🔔 Avisos en el anillo**: llamadas, WhatsApp, SMS, redes sociales y correo hacen que el anillo se encienda o vibre (servicio nativo de Android, funciona con la app en segundo plano).
+- **🧘 Respiración guiada**: Calma, Cuadrada o 4-7-8, de 1 a 5 min, con tu pulso antes y después.
+- **📊 Resumen semanal**: pasos por día con la meta, sueño medio, pulso en reposo y entrenos, comparados con la semana anterior.
+- **🏆 Rachas y logros**: racha de días cumpliendo la meta y 16 logros desbloqueables.
 - **Historial de 7 días**: gráfica de pulso del día (min/media/máx), pasos por hora, fases del sueño y mediciones manuales.
 - **Ajustes del anillo**: pulso automático (cada 5–60 min) y oxígeno automático.
 - **Alertas**: vibración y aviso si el pulso sale del rango o el oxígeno baja del límite que elijas.

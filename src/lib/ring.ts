@@ -68,6 +68,7 @@ class Ring {
   private bigListeners = new Set<Listener>()
   /** Every packet that nobody was waiting for (gestures, ring-initiated events…), for the technical log. */
   onUnsolicited?: (channel: Channel, p: Uint8Array) => void
+  private eventListeners = new Set<(channel: Channel, p: Uint8Array) => void>()
   onPacket?: (dir: 'in' | 'out', channel: Channel, p: Uint8Array) => void
   private chain: Promise<unknown> = Promise.resolve()
 
@@ -75,9 +76,18 @@ class Ring {
     transport.onNotify((channel, p) => {
       this.onPacket?.('in', channel, p)
       const set = channel === 'big' ? this.bigListeners : this.mainListeners
-      if (set.size === 0) this.onUnsolicited?.(channel, p)
+      if (set.size === 0) {
+        this.onUnsolicited?.(channel, p)
+        this.eventListeners.forEach((l) => l(channel, p))
+      }
       set.forEach((l) => l(p))
     })
+  }
+
+  /** Listen to packets the ring sends on its own (touches, gestures…). Returns an unsubscribe function. */
+  onEvent(cb: (channel: Channel, p: Uint8Array) => void) {
+    this.eventListeners.add(cb)
+    return () => void this.eventListeners.delete(cb)
   }
 
   private async send(channel: Channel, data: Uint8Array) {

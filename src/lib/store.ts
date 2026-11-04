@@ -12,6 +12,12 @@ export interface SavedSleep extends Omit<SleepNight, 'daysAgo'> {
   /** Local date (YYYY-MM-DD) of the morning the night ended. */
   date: string
 }
+export interface BreathSession {
+  t: number
+  minutes: number
+  hrBefore?: number
+  hrAfter?: number
+}
 export interface Settings {
   deviceId?: string
   deviceName?: string
@@ -21,6 +27,8 @@ export interface Settings {
   spo2Low: number
   stepGoal: number
   kcalGoal: number
+  /** Hex prefix of the packet the ring sends when tapped, learned in the camera screen. */
+  cameraSig?: string
 }
 export interface Data {
   hr: Record<string, HrDay>
@@ -28,6 +36,7 @@ export interface Data {
   sleep: Record<string, SavedSleep>
   spots: Spot[]
   workouts: Workout[]
+  breaths: BreathSession[]
   lastSync?: number
 }
 
@@ -54,7 +63,7 @@ function write(key: string, value: unknown) {
 
 export const loadSettings = () => read<Settings>(SETTINGS_KEY, defaultSettings)
 export const saveSettings = (s: Settings) => write(SETTINGS_KEY, s)
-export const loadData = () => read<Data>(DATA_KEY, { hr: {}, steps: {}, sleep: {}, spots: [], workouts: [] })
+export const loadData = () => read<Data>(DATA_KEY, { hr: {}, steps: {}, sleep: {}, spots: [], workouts: [], breaths: [] })
 export const saveData = (d: Data) => write(DATA_KEY, d)
 
 export const dayKey = (d: Date) =>
