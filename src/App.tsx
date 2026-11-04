@@ -1,5 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { HrChart, Ring as GoalRing, SleepChart, StepsChart } from './Charts'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ActivityRings, HrChart, SleepChart, StepsChart } from './Charts'
+import {
+  IconBattery,
+  IconBluetooth,
+  IconChart,
+  IconDrop,
+  IconFlame,
+  IconHeart,
+  IconHome,
+  IconMoon,
+  IconRefresh,
+  IconRoute,
+  IconRun,
+  IconSearch,
+  IconSettings,
+  IconShoe,
+} from './Icons'
+import { WorkoutTab } from './Workout'
 import { bluetoothAvailable, isNative, toHex, transport, type FoundDevice } from './lib/ble'
 import { ring, type Reading } from './lib/ring'
 import { shareText } from './lib/share'
@@ -18,7 +35,7 @@ import {
 } from './lib/store'
 
 type Status = 'idle' | 'scanning' | 'connecting' | 'connected'
-type Tab = 'hoy' | 'historial' | 'ajustes'
+type Tab = 'hoy' | 'entreno' | 'historial' | 'ajustes'
 const HISTORY_DAYS = 7
 const INTERVALS = [5, 10, 15, 30, 60]
 const WEEKDAY = new Intl.DateTimeFormat('es', { weekday: 'short' })
@@ -215,15 +232,34 @@ export default function App() {
   const hDate = daysAgo(historyDay)
   const hKey = dayKey(hDate)
 
+  const kcal = Math.round(today.calories / 1000)
+  const hrNow = live?.kind === 'hr' ? live.value : lastHr?.value ?? todayHr[todayHr.length - 1]
+  const hour = new Date().getHours()
+  const greeting = hour < 6 ? 'Buenas noches' : hour < 13 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches'
+
   return (
     <div className="app">
+      <div className="bg-glow" aria-hidden="true" />
       <header className="topbar">
         <div className="logo">
-          <span className="logo-mark">◯</span> Mi Anillo
+          <span className="logo-mark" />
+          <span>
+            <small>{greeting}</small>
+            Mi Anillo
+          </span>
         </div>
         <div className={`conn ${status}`}>
-          <i />
-          {status === 'connected' ? (battery ? `${battery.level}%${battery.charging ? ' ⚡' : ''}` : 'Conectado') : status === 'connecting' ? 'Conectando…' : status === 'scanning' ? 'Buscando…' : 'Desconectado'}
+          {status === 'connected' ? (
+            <>
+              <IconBattery size={18} level={battery?.level ?? 100} />
+              {battery ? `${battery.level}%${battery.charging ? ' ⚡' : ''}` : 'Conectado'}
+            </>
+          ) : (
+            <>
+              <IconBluetooth size={16} />
+              {status === 'connecting' ? 'Conectando…' : status === 'scanning' ? 'Buscando…' : 'Desconectado'}
+            </>
+          )}
         </div>
       </header>
 
@@ -232,15 +268,19 @@ export default function App() {
           {notice.text}
         </div>
       )}
-      {syncing && <div className="notice info">{syncing}</div>}
+      {syncing && (
+        <div className="notice info syncing">
+          <IconRefresh size={14} className="spin" /> {syncing}
+        </div>
+      )}
 
       <main className="content">
-        {!bluetoothAvailable && (
+        {!bluetoothAvailable && tab !== 'entreno' && (
           <section className="card warn">
             <h2>Bluetooth no disponible</h2>
             <p>
-              Este navegador no puede conectarse al anillo. Instala la <b>app de Android</b> (descárgala abajo) o abre esta página en <b>Chrome</b>. Safari en iPhone no permite
-              Bluetooth en páginas web.
+              Este navegador no puede conectarse al anillo. Instala la <b>app de Android</b> o abre esta página en <b>Chrome</b>. Safari en iPhone no permite Bluetooth en
+              páginas web.
             </p>
             <a className="btn primary" href="./MiAnillo.apk">
               Descargar app Android
@@ -248,20 +288,23 @@ export default function App() {
           </section>
         )}
 
-        {bluetoothAvailable && !connected && (
-          <section className="card">
+        {bluetoothAvailable && !connected && tab !== 'entreno' && (
+          <section className="card connect-card">
+            <div className="connect-art" aria-hidden="true">
+              <span />
+            </div>
             <h2>{settings.deviceId ? settings.deviceName ?? 'Tu anillo' : 'Conecta tu anillo'}</h2>
-            <p className="muted">
-              Ponte el anillo o déjalo cargando cerca del teléfono. Si la app <b>QRing</b> está abierta, ciérrala: el anillo solo acepta una conexión a la vez.
+            <p className="muted small">
+              Ponte el anillo o déjalo cargando cerca. Si la app <b>QRing</b> está abierta, ciérrala: el anillo solo acepta una conexión a la vez.
             </p>
             <div className="row">
               {settings.deviceId && (
                 <button className="btn primary" disabled={status !== 'idle'} onClick={() => connectTo({ deviceId: settings.deviceId!, name: settings.deviceName ?? '' })}>
-                  Reconectar
+                  <IconBluetooth size={16} /> Reconectar
                 </button>
               )}
               <button className={`btn ${settings.deviceId ? '' : 'primary'}`} disabled={status !== 'idle'} onClick={scan}>
-                {status === 'scanning' ? 'Buscando…' : 'Buscar anillo'}
+                <IconSearch size={16} /> {status === 'scanning' ? 'Buscando…' : 'Buscar anillo'}
               </button>
               {status === 'scanning' && !transport.chooser && (
                 <button className="btn" onClick={() => transport.stopScan()}>
@@ -290,38 +333,55 @@ export default function App() {
 
         {tab === 'hoy' && (
           <>
-            <section className="card hero">
-              <GoalRing value={today.steps} goal={settings.stepGoal} label="pasos" />
+            <section className="card hero glass">
+              <ActivityRings
+                rings={[
+                  { value: today.steps, goal: settings.stepGoal, cls: 'r-steps' },
+                  { value: kcal, goal: settings.kcalGoal, cls: 'r-kcal' },
+                  { value: today.distance, goal: 5000, cls: 'r-dist' },
+                ]}
+              />
               <div className="hero-stats">
-                <div>
-                  <small>Calorías</small>
-                  <b>{Math.round(today.calories / 1000).toLocaleString('es')}</b> kcal
+                <div className="hs steps">
+                  <IconShoe size={16} />
+                  <span>
+                    <b>{today.steps.toLocaleString('es')}</b>
+                    <small>/ {settings.stepGoal.toLocaleString('es')} pasos</small>
+                  </span>
                 </div>
-                <div>
-                  <small>Distancia</small>
-                  <b>{(today.distance / 1000).toFixed(2)}</b> km
+                <div className="hs kcal">
+                  <IconFlame size={16} />
+                  <span>
+                    <b>{kcal.toLocaleString('es')}</b>
+                    <small>/ {settings.kcalGoal} kcal</small>
+                  </span>
                 </div>
-                <div>
-                  <small>Meta</small>
-                  <b>{Math.min(100, Math.round((today.steps / settings.stepGoal) * 100))}</b> %
+                <div className="hs dist">
+                  <IconRoute size={16} />
+                  <span>
+                    <b>{(today.distance / 1000).toFixed(2)}</b>
+                    <small>/ 5 km</small>
+                  </span>
                 </div>
               </div>
             </section>
 
             <section className="grid2">
               <Metric
+                kind="hr"
                 title="Pulso"
                 unit="lpm"
-                icon="♥"
-                value={live?.kind === 'hr' ? live.value : lastHr?.value ?? todayHr[todayHr.length - 1]}
-                sub={live?.kind === 'hr' && live.running ? 'Midiendo… no te muevas' : lastHr ? `Medido ${ago(lastHr.t)}` : todayHr.length ? 'Última lectura automática' : 'Sin datos'}
+                icon={<IconHeart size={16} className={live?.kind === 'hr' && live.running ? 'beat' : ''} />}
+                value={hrNow}
+                sub={live?.kind === 'hr' && live.running ? 'Midiendo… no te muevas' : lastHr ? `Medido ${ago(lastHr.t)}` : todayHr.length ? 'Lectura automática' : 'Sin datos'}
                 running={live?.kind === 'hr' && live.running}
                 onMeasure={connected && !busy ? () => measure('hr') : undefined}
               />
               <Metric
+                kind="spo2"
                 title="Oxígeno"
                 unit="%"
-                icon="O₂"
+                icon={<IconDrop size={16} />}
                 value={live?.kind === 'spo2' ? live.value : lastSpo2?.value}
                 sub={live?.kind === 'spo2' && live.running ? 'Midiendo… hasta 30 s' : lastSpo2 ? `Medido ${ago(lastSpo2.t)}` : 'Sin datos'}
                 running={live?.kind === 'spo2' && live.running}
@@ -331,10 +391,12 @@ export default function App() {
 
             <section className="card">
               <div className="card-head">
-                <h2>Pulso de hoy</h2>
+                <h2>
+                  <IconHeart size={16} className="h-icon hr" /> Pulso de hoy
+                </h2>
                 {connected && (
                   <button className="link" disabled={busy} onClick={sync}>
-                    Actualizar
+                    <IconRefresh size={14} /> Actualizar
                   </button>
                 )}
               </div>
@@ -342,11 +404,15 @@ export default function App() {
             </section>
 
             <section className="card">
-              <h2>Sueño de anoche</h2>
+              <h2>
+                <IconMoon size={16} className="h-icon sleep" /> Sueño de anoche
+              </h2>
               {lastNight ? (
                 <>
                   <p className="big">
-                    {Math.floor(sleepMinutes(lastNight).asleep / 60)} h {sleepMinutes(lastNight).asleep % 60} min
+                    {Math.floor(sleepMinutes(lastNight).asleep / 60)}
+                    <small>h</small> {sleepMinutes(lastNight).asleep % 60}
+                    <small>min</small>
                   </p>
                   <SleepChart night={lastNight} />
                 </>
@@ -356,6 +422,18 @@ export default function App() {
             </section>
             {data.lastSync && <p className="foot muted">Última sincronización: {new Date(data.lastSync).toLocaleString('es')}</p>}
           </>
+        )}
+
+        {tab === 'entreno' && (
+          <WorkoutTab
+            connected={connected}
+            workouts={data.workouts ?? []}
+            onSave={(w) => {
+              setData((d) => ({ ...d, workouts: [...(d.workouts ?? []), w] }))
+              info(`Entreno guardado: ${(w.distance / 1000).toFixed(2)} km`)
+            }}
+            onDelete={(id) => setData((d) => ({ ...d, workouts: (d.workouts ?? []).filter((w) => w.id !== id) }))}
+          />
         )}
 
         {tab === 'historial' && (
@@ -488,6 +566,7 @@ export default function App() {
               <NumberField label="Pulso bajo (lpm)" value={settings.hrLow} min={25} max={100} onChange={(v) => setSettings({ ...settings, hrLow: v })} />
               <NumberField label="Oxígeno bajo (%)" value={settings.spo2Low} min={80} max={99} onChange={(v) => setSettings({ ...settings, spo2Low: v })} />
               <NumberField label="Meta de pasos" value={settings.stepGoal} min={1000} max={50000} step={500} onChange={(v) => setSettings({ ...settings, stepGoal: v })} />
+              <NumberField label="Meta de calorías" value={settings.kcalGoal ?? 400} min={50} max={3000} step={50} onChange={(v) => setSettings({ ...settings, kcalGoal: v })} />
               <p className="muted small">Las alertas son orientativas; el anillo no es un dispositivo médico.</p>
             </section>
 
@@ -543,7 +622,7 @@ export default function App() {
                 <button
                   className="btn danger"
                   onClick={() => {
-                    if (confirm('¿Borrar todo el historial guardado en el teléfono? Lo que siga en el anillo se puede volver a descargar.')) setData({ hr: {}, steps: {}, sleep: {}, spots: [] })
+                    if (confirm('¿Borrar todo el historial guardado en el teléfono? Lo que siga en el anillo se puede volver a descargar.')) setData({ hr: {}, steps: {}, sleep: {}, spots: [], workouts: [] })
                   }}
                 >
                   Borrar historial
@@ -581,13 +660,14 @@ export default function App() {
       <nav className="tabs">
         {(
           [
-            ['hoy', '◉', 'Hoy'],
-            ['historial', '▤', 'Historial'],
-            ['ajustes', '⚙', 'Ajustes'],
+            ['hoy', IconHome, 'Hoy'],
+            ['entreno', IconRun, 'Entreno'],
+            ['historial', IconChart, 'Historial'],
+            ['ajustes', IconSettings, 'Ajustes'],
           ] as const
-        ).map(([id, icon, label]) => (
+        ).map(([id, Icon, label]) => (
           <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
-            <span>{icon}</span>
+            <Icon size={22} />
             {label}
           </button>
         ))}
@@ -596,9 +676,9 @@ export default function App() {
   )
 }
 
-function Metric(props: { title: string; unit: string; icon: string; value?: number; sub: string; running?: boolean; onMeasure?: () => void }) {
+function Metric(props: { kind: string; title: string; unit: string; icon: ReactNode; value?: number; sub: string; running?: boolean; onMeasure?: () => void }) {
   return (
-    <section className={`card metric ${props.running ? 'running' : ''}`}>
+    <section className={`card metric ${props.kind} ${props.running ? 'running' : ''}`}>
       <div className="metric-head">
         <span className="metric-icon">{props.icon}</span>
         {props.title}

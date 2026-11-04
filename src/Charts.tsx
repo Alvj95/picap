@@ -3,7 +3,7 @@ import { fmtTime, type SavedSleep } from './lib/store'
 
 const W = 320
 const H = 140
-const PAD = { l: 28, r: 6, t: 8, b: 18 }
+const PAD = { l: 28, r: 12, t: 8, b: 18 }
 const plotW = W - PAD.l - PAD.r
 const plotH = H - PAD.t - PAD.b
 
@@ -53,9 +53,22 @@ export function HrChart({ day, low, high }: { day?: HrDay; low: number; high: nu
             {v}
           </text>
         ))}
-        {segs.map((d, i) => (
-          <path key={i} d={d} className="line hr" />
-        ))}
+        <defs>
+          <linearGradient id="hrFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#ff5c7a" stopOpacity="0.45" />
+            <stop offset="1" stopColor="#ff5c7a" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {segs.map((d, i) => {
+          const xs = [...d.matchAll(/[ML]([\d.]+),/g)].map((m) => m[1])
+          const area = `${d}L${xs[xs.length - 1]},${PAD.t + plotH}L${xs[0]},${PAD.t + plotH}Z`
+          return (
+            <g key={i}>
+              <path d={area} fill="url(#hrFill)" />
+              <path d={d} className="line hr" />
+            </g>
+          )
+        })}
         {pts
           .filter((p) => p.v > high || p.v < low)
           .map((p) => (
@@ -90,8 +103,14 @@ export function StepsChart({ slots }: { slots?: StepSlot[] }) {
       <text x={PAD.l - 4} y={PAD.t + 6} textAnchor="end" className="axis-label">
         {max}
       </text>
+      <defs>
+        <linearGradient id="barFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#3ee6a0" />
+          <stop offset="1" stopColor="#1fa9c9" />
+        </linearGradient>
+      </defs>
       {hours.map((v, h) =>
-        v ? <rect key={h} x={PAD.l + h * bw + 1} width={bw - 2} y={PAD.t + plotH - (v / max) * plotH} height={(v / max) * plotH} rx={2} className="bar" /> : null,
+        v ? <rect key={h} x={PAD.l + h * bw + 1} width={bw - 2} y={PAD.t + plotH - (v / max) * plotH} height={(v / max) * plotH} rx={2.5} fill="url(#barFill)" /> : null,
       )}
     </svg>
   )
@@ -111,7 +130,7 @@ export function SleepChart({ night }: { night?: SavedSleep }) {
         {night.stages.map((s, i) => {
           const x = (acc / total) * W
           acc += s.minutes
-          return <rect key={i} x={x} width={(s.minutes / total) * W} y={s.type === 'deep' ? 22 : s.type === 'light' ? 14 : s.type === 'rem' ? 6 : 0} height={20} className={`stage ${s.type}`} />
+          return <rect key={i} x={x} width={Math.max(0.5, (s.minutes / total) * W - 0.5)} y={s.type === 'deep' ? 24 : s.type === 'light' ? 16 : s.type === 'rem' ? 8 : 0} height={20} rx={3} className={`stage ${s.type}`} />
         })}
       </svg>
       <div className="stats">
@@ -128,21 +147,23 @@ export function SleepChart({ night }: { night?: SavedSleep }) {
   )
 }
 
-/** Circular progress for the step goal. */
-export function Ring({ value, goal, label }: { value: number; goal: number; label: string }) {
-  const r = 52
-  const c = 2 * Math.PI * r
-  const pct = Math.min(1, goal ? value / goal : 0)
+/** Three concentric progress rings (steps, calories, distance), animated on change. */
+export function ActivityRings({ rings }: { rings: { value: number; goal: number; cls: string }[] }) {
+  const size = 140
+  const stroke = 13
   return (
-    <svg viewBox="0 0 120 120" className="goal" role="img" aria-label={`${value} de ${goal} ${label}`}>
-      <circle cx={60} cy={60} r={r} className="goal-track" />
-      <circle cx={60} cy={60} r={r} className="goal-fill" strokeDasharray={`${c * pct} ${c}`} transform="rotate(-90 60 60)" />
-      <text x={60} y={58} textAnchor="middle" className="goal-value">
-        {value.toLocaleString('es')}
-      </text>
-      <text x={60} y={76} textAnchor="middle" className="goal-label">
-        {label}
-      </text>
+    <svg viewBox={`0 0 ${size} ${size}`} className="activity" role="img" aria-label="Progreso de actividad">
+      {rings.map((r, i) => {
+        const rad = size / 2 - stroke / 2 - i * (stroke + 3)
+        const c = 2 * Math.PI * rad
+        const pct = Math.min(1, r.goal ? r.value / r.goal : 0)
+        return (
+          <g key={r.cls} className={r.cls}>
+            <circle cx={size / 2} cy={size / 2} r={rad} className="act-track" strokeWidth={stroke} />
+            <circle cx={size / 2} cy={size / 2} r={rad} className="act-fill" strokeWidth={stroke} strokeDasharray={`${Math.max(0.01, c * pct)} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+          </g>
+        )
+      })}
     </svg>
   )
 }

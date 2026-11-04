@@ -1,3 +1,4 @@
+import type { Workout } from './gps'
 import type { HrDay, SleepNight, StepSlot } from './ring'
 
 /** Everything the app remembers lives in localStorage on the phone; nothing is sent anywhere. */
@@ -19,19 +20,21 @@ export interface Settings {
   hrLow: number
   spo2Low: number
   stepGoal: number
+  kcalGoal: number
 }
 export interface Data {
   hr: Record<string, HrDay>
   steps: Record<string, StepSlot[]>
   sleep: Record<string, SavedSleep>
   spots: Spot[]
+  workouts: Workout[]
   lastSync?: number
 }
 
 const SETTINGS_KEY = 'anillo.settings'
 const DATA_KEY = 'anillo.data'
 
-export const defaultSettings: Settings = { alertsOn: true, hrHigh: 120, hrLow: 45, spo2Low: 92, stepGoal: 8000 }
+export const defaultSettings: Settings = { alertsOn: true, hrHigh: 120, hrLow: 45, spo2Low: 92, stepGoal: 8000, kcalGoal: 400 }
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -51,7 +54,7 @@ function write(key: string, value: unknown) {
 
 export const loadSettings = () => read<Settings>(SETTINGS_KEY, defaultSettings)
 export const saveSettings = (s: Settings) => write(SETTINGS_KEY, s)
-export const loadData = () => read<Data>(DATA_KEY, { hr: {}, steps: {}, sleep: {}, spots: [] })
+export const loadData = () => read<Data>(DATA_KEY, { hr: {}, steps: {}, sleep: {}, spots: [], workouts: [] })
 export const saveData = (d: Data) => write(DATA_KEY, d)
 
 export const dayKey = (d: Date) =>
@@ -98,6 +101,10 @@ export function toCsv(data: Data): string {
   for (const s of [...data.spots].sort((a, b) => a.t - b.t)) {
     const d = new Date(s.t)
     rows.push(`${s.kind === 'hr' ? 'pulso_manual' : 'spo2_manual'},${dayKey(d)},${fmtTime(d.getHours() * 60 + d.getMinutes())},${s.value},${s.kind === 'hr' ? 'lpm' : '%'}`)
+  }
+  for (const w of [...(data.workouts ?? [])].sort((a, b) => a.start - b.start)) {
+    const d = new Date(w.start)
+    rows.push(`entreno_${w.sport},${dayKey(d)},${fmtTime(d.getHours() * 60 + d.getMinutes())},${Math.round(w.distance)},min=${Math.round(w.duration / 60000)};pulso_medio=${w.hrAvg ?? ''};pulso_max=${w.hrMax ?? ''}`)
   }
   return rows.join('\n')
 }

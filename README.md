@@ -18,6 +18,7 @@ Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica 
 
 - **Hoy**: pasos con meta diaria, calorías, distancia, pulso y oxígeno.
 - **Medir ahora**: pulso (lpm) y SpO₂ (%) en tiempo real.
+- **Entreno con GPS** (del teléfono; el anillo no tiene GPS): caminar, correr o bici con mapa de la ruta (OpenStreetMap), distancia, tiempo, ritmo o velocidad, calorías y pulso del anillo durante el ejercicio. Historial de entrenos con su mapa.
 - **Historial de 7 días**: gráfica de pulso del día (min/media/máx), pasos por hora, fases del sueño y mediciones manuales.
 - **Ajustes del anillo**: pulso automático (cada 5–60 min) y oxígeno automático.
 - **Alertas**: vibración y aviso si el pulso sale del rango o el oxígeno baja del límite que elijas.
@@ -46,5 +47,10 @@ npm ci
 npm run dev        # versión web (Chrome, con Web Bluetooth)
 npm run android    # compila y abre el proyecto en Android Studio
 ```
+
+## Límites del anillo
+
+- **Pago NFC**: el Kör Mau no tiene chip NFC (solo Bluetooth), así que no puede pagar; no es algo que una app pueda añadir.
+- **GPS**: el anillo no tiene GPS; los entrenos usan el del teléfono, con la pantalla encendida.
 
 Aviso: las lecturas son orientativas. El anillo no es un dispositivo médico.
