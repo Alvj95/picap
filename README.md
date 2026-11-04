@@ -1,64 +1,50 @@
-# Picap Studio
+# Mi Anillo
 
-App **móvil gratuita** inspirada en Higgsfield: genera imágenes con IA y conviértelas en clips de video con movimientos de cámara cinematográficos. Sin registro, sin API keys y sin servidor propio.
-
-- **Android**: app nativa (Capacitor). El APK se compila gratis en GitHub Actions.
-- **iPhone**: se instala como PWA desde Safari → Compartir → “Añadir a pantalla de inicio”.
+App **gratuita y sin nube** para anillos inteligentes que usan la app **QRing**, como el **Leotec Kör Mau**, los Colmi R02/R03/R06/R10 y sus clones (chip Realtek RTL8762). Se conecta directamente al anillo por Bluetooth y guarda tus datos solo en el teléfono.
 
 ## Instalar en Android
 
 1. Desde el teléfono abre la página **Releases** del repositorio (la más reciente).
-2. Descarga **PicapStudio.apk**.
+2. Descarga **MiAnillo.apk** (si el navegador lo bloquea, baja `MiAnillo-apk.zip` y descomprímelo).
 3. Ábrelo y permite “instalar apps de origen desconocido”.
+4. Cierra la app QRing (o desvincula el anillo allí): el anillo solo acepta **una conexión a la vez**.
+5. En Mi Anillo pulsa **Buscar anillo**, concede el permiso de “dispositivos cercanos” y elige tu anillo.
 
-Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica ahí.
+Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica en Releases.
 
-Para publicarla en Google Play hace falta firmar un build de release (`./gradlew bundleRelease`) y una cuenta de desarrollador (pago único de 25 USD).
+> iPhone: Safari no permite Bluetooth en páginas web, así que la versión web no puede conectarse al anillo desde iOS. En Chrome (Android o PC) la versión web sí funciona con Web Bluetooth.
 
 ## Qué hace
 
-- **Texto → imagen gratis** con [Pollinations](https://pollinations.ai) (modelos Flux y Turbo), con estilos (cinemático, fotorrealista, anime, cyberpunk…), formatos 9:16 / 16:9 / 1:1 / 4:5 y seed fija.
-- **Subir tu propia foto** (se procesa 100% en el navegador).
-- **16 movimientos de cámara**: Dolly In/Out, Crash Zoom, Pan, Tilt, 360 Orbit, Spiral Zoom, Dutch Angle, Handheld, Earthquake, Crane Up, Heartbeat…
-- **Efectos visuales**: Cinemático (teal & orange + letterbox), Film Grain, VHS Glitch, Noir, Light Leak, Dreamy Glow.
-- **Exportar video** MP4/WebM (2–10 s) en el propio teléfono con `MediaRecorder`, y **guardar/compartir** con la hoja nativa (Fotos, TikTok, WhatsApp, Instagram…).
-- **Galería** local de tus creaciones.
-- **Edición con IA en el propio teléfono** (gratis, sin servidor):
-  - **Movimiento 3D**: estima la profundidad de la foto (Depth Anything V2) y genera paralaje real — lo cercano se mueve más que el fondo.
-  - **Bokeh IA**: desenfoca el fondo según la profundidad, como modo retrato.
-  - **Cambiar fondo**: recorta al sujeto (RMBG-1.4) y lo pone sobre un fondo desenfocado, de color, croma o **generado con IA** a partir de un texto.
-  - **✨ Mejorar prompt**: convierte una idea corta en un prompt detallado.
-
-  Los modelos se descargan de Hugging Face la primera vez (~25–45 MB cada uno) y quedan en caché. RMBG-1.4 tiene licencia de uso no comercial.
+- **Hoy**: pasos con meta diaria, calorías, distancia, pulso y oxígeno.
+- **Medir ahora**: pulso (lpm) y SpO₂ (%) en tiempo real.
+- **Historial de 7 días**: gráfica de pulso del día (min/media/máx), pasos por hora, fases del sueño y mediciones manuales.
+- **Ajustes del anillo**: pulso automático (cada 5–60 min) y oxígeno automático.
+- **Alertas**: vibración y aviso si el pulso sale del rango o el oxígeno baja del límite que elijas.
+- **Buscar mi anillo**: lo hace parpadear o vibrar.
+- **Exportar CSV** para Excel o Google Sheets.
+- **Registro técnico**: muestra los paquetes Bluetooth. Las líneas con ★ son eventos que envía el propio anillo (toques, gestos), para poder añadir funciones nuevas como el control remoto de la cámara.
+- Ajusta la hora del anillo al conectar y se reconecta solo al abrir la app.
 
 ## Cómo funciona
 
-| Parte | Tecnología | Costo |
-| --- | --- | --- |
-| Generación de imagen | API pública de Pollinations | Gratis |
-| Animación y efectos | Canvas 2D en el navegador | Gratis |
-| Exportación de video | `canvas.captureStream` + `MediaRecorder` | Gratis |
-| App Android | Capacitor + GitHub Actions | Gratis |
-| Versión web / iPhone (PWA) | GitHub Pages | Gratis |
+| Parte | Archivo |
+| --- | --- |
+| Bluetooth nativo de Android (buscar, conectar, enviar, recibir) | `android/app/src/main/java/com/mianillo/app/RingBlePlugin.java` |
+| Bluetooth en el navegador (Web Bluetooth) | `src/lib/ble.ts` |
+| Protocolo del anillo (comandos de 16 bytes con checksum) | `src/lib/ring.ts` |
+| Almacenamiento local y exportación CSV | `src/lib/store.ts` |
+| Pantallas y gráficas | `src/App.tsx`, `src/Charts.tsx` |
+
+El protocolo es el de los anillos Colmi R0x, documentado por la comunidad (Gadgetbridge y `colmi_r02_client`):
+servicio `6e40fff0-…`, escritura `6e400002-…`, notificaciones `6e400003-…`, y un canal de “big data” (`de5bf728-…`) para el sueño.
 
 ## Desarrollo
 
 ```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # genera dist/
-npm run lint
-npm run android  # compila, sincroniza y abre el proyecto en Android Studio
+npm ci
+npm run dev        # versión web (Chrome, con Web Bluetooth)
+npm run android    # compila y abre el proyecto en Android Studio
 ```
 
-Para usar otro endpoint de imágenes compatible, define `VITE_IMAGE_API` (por defecto `https://image.pollinations.ai/prompt/`).
-
-## Publicar gratis
-
-El workflow `.github/workflows/deploy.yml` publica en GitHub Pages en cada push a `main`. Activa **Settings → Pages → Source: GitHub Actions** en el repositorio.
-
-## Notas
-
-- La grabación ocurre en tiempo real: mantén la app abierta mientras se exporta.
-- El servicio gratuito de imágenes tiene límites de uso; si falla, reintenta en unos segundos.
-- Los videos se generan animando una imagen (movimiento 2D/“2.5D”); no es un modelo de video generativo.
+Aviso: las lecturas son orientativas. El anillo no es un dispositivo médico.

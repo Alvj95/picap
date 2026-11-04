@@ -1,562 +1,663 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { App as CapApp } from '@capacitor/app'
-import { Capacitor } from '@capacitor/core'
-import { composeSubject, estimateDepth, removeBackground, type BackgroundMode } from './lib/ai'
-import { DepthRenderer } from './lib/depth3d'
-import { EFFECTS, MOTION_PRESETS } from './lib/motion'
-import { drawFrame, recordVideo, type RenderOptions } from './lib/render'
-import { shareVideo } from './lib/share'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { HrChart, Ring as GoalRing, SleepChart, StepsChart } from './Charts'
+import { bluetoothAvailable, isNative, toHex, transport, type FoundDevice } from './lib/ble'
+import { ring, type Reading } from './lib/ring'
+import { shareText } from './lib/share'
 import {
-  ASPECTS,
-  MODELS,
-  PROMPT_IDEAS,
-  STYLES,
-  buildImageUrl,
-  enhancePrompt,
-  loadGallery,
-  loadImage,
-  saveGallery,
-  type GalleryItem,
-} from './lib/generate'
+  dayKey,
+  daysAgo,
+  dayTotals,
+  loadData,
+  loadSettings,
+  saveData,
+  saveSettings,
+  sleepMinutes,
+  toCsv,
+  type Data,
+  type Settings,
+} from './lib/store'
 
-type Tab = 'create' | 'motion' | 'ai' | 'effects' | 'gallery'
-type Source = HTMLImageElement | HTMLCanvasElement
+type Status = 'idle' | 'scanning' | 'connecting' | 'connected'
+type Tab = 'hoy' | 'historial' | 'ajustes'
+const HISTORY_DAYS = 7
+const INTERVALS = [5, 10, 15, 30, 60]
+const WEEKDAY = new Intl.DateTimeFormat('es', { weekday: 'short' })
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'create', label: 'Crear', icon: '✦' },
-  { id: 'motion', label: 'Cámara', icon: '◎' },
-  { id: 'ai', label: 'IA', icon: '✧' },
-  { id: 'effects', label: 'Efectos', icon: '◐' },
-  { id: 'gallery', label: 'Galería', icon: '▦' },
-]
-
-const MAX_SIDE = 1280
-
-const BACKGROUNDS: { id: 'original' | BackgroundMode; name: string; color?: string }[] = [
-  { id: 'original', name: 'Original' },
-  { id: 'blur', name: 'Desenfocado' },
-  { id: 'ai', name: '✨ Fondo con IA' },
-  { id: 'color', name: 'Negro', color: '#0b0b0d' },
-  { id: 'color', name: 'Blanco', color: '#f4f4f4' },
-  { id: 'color', name: 'Croma', color: '#00b140' },
-]
-const randomSeed = () => Math.floor(Math.random() * 1_000_000)
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('create')
-  const [prompt, setPrompt] = useState('')
-  const [style, setStyle] = useState('cinematic')
-  const [aspectId, setAspectId] = useState('9:16')
-  const [model, setModel] = useState('flux')
-  const [seed, setSeed] = useState(randomSeed)
-  const [lockSeed, setLockSeed] = useState(false)
+  const [tab, setTab] = useState<Tab>('hoy')
+  const [settings, setSettings] = useState<Settings>(loadSettings)
+  const [data, setData] = useState<Data>(loadData)
+  const [status, setStatus] = useState<Status>('idle')
+  const [syncing, setSyncing] = useState('')
+  const [devices, setDevices] = useState<FoundDevice[]>([])
+  const [battery, setBattery] = useState<{ level: number; charging: boolean }>()
+  const [hrCfg, setHrCfg] = useState<{ enabled: boolean; interval: number }>()
+  const [spo2Auto, setSpo2Auto] = useState<boolean>()
+  const [live, setLive] = useState<{ kind: Reading; value?: number; running: boolean }>()
+  const [notice, setNotice] = useState<{ text: string; kind: 'info' | 'error' | 'alert' }>()
+  const [log, setLog] = useState<string[]>([])
+  const [showLog, setShowLog] = useState(false)
+  const [historyDay, setHistoryDay] = useState(0)
+  const bigData = useRef(false)
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
 
-  const [baseImage, setBaseImage] = useState<Source | null>(null) // unedited photo
-  const [image, setImage] = useState<Source | null>(null) // photo after AI background edits
-  const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState('')
+  useEffect(() => saveSettings(settings), [settings])
+  useEffect(() => saveData(data), [data])
 
-  const [presetId, setPresetId] = useState('dolly-in')
-  const [effect, setEffect] = useState('cinematic')
-  const [duration, setDuration] = useState(5)
-  const [intensity, setIntensity] = useState(1)
+  const info = (text: string) => setNotice({ text, kind: 'info' })
+  const fail = (e: unknown) => setNotice({ text: errMsg(e), kind: 'error' })
+  const alarm = useCallback((text: string) => {
+    setNotice({ text, kind: 'alert' })
+    navigator.vibrate?.([300, 150, 300])
+  }, [])
 
-  const [exporting, setExporting] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [video, setVideo] = useState<{ url: string; blob: Blob; ext: string } | null>(null)
-  const [gallery, setGallery] = useState<GalleryItem[]>(loadGallery)
+  // Technical log: every packet in/out, useful to discover ring gestures and debug.
+  useEffect(() => {
+    const stamp = () => new Date().toLocaleTimeString('es', { hour12: false })
+    ring.onPacket = (dir, ch, p) => setLog((l) => [`${stamp()} ${dir === 'in' ? '←' : '→'} ${ch} ${toHex(p)}`, ...l].slice(0, 300))
+    ring.onUnsolicited = (ch, p) => setLog((l) => [`${stamp()} ★ evento del anillo ${ch} ${toHex(p)}`, ...l].slice(0, 300))
+    transport.onDisconnect(() => {
+      setStatus('idle')
+      setLive(undefined)
+      setSyncing('')
+      setNotice({ text: 'El anillo se desconectó.', kind: 'error' })
+    })
+  }, [])
 
-  const [depth, setDepth] = useState<DepthRenderer | null>(null)
-  const [use3d, setUse3d] = useState(false)
-  const [bokeh, setBokeh] = useState(0)
-  const [cutout, setCutout] = useState<HTMLCanvasElement | null>(null)
-  const [bgChoice, setBgChoice] = useState('Original')
-  const [bgPrompt, setBgPrompt] = useState('')
-  const [aiBusy, setAiBusy] = useState<{ pct: number; label: string } | null>(null)
-  const [enhancing, setEnhancing] = useState(false)
-
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const exportingRef = useRef(false)
-
-  const aspect = ASPECTS.find((a) => a.id === aspectId)!
-  const preset = MOTION_PRESETS.find((p) => p.id === presetId)!
-  const options: RenderOptions = useMemo(
-    () => ({ preset, effect, intensity, duration, depth: use3d ? depth : null, bokeh }),
-    [preset, effect, intensity, duration, use3d, depth, bokeh],
+  const checkValue = useCallback(
+    (kind: Reading, v: number) => {
+      const s = settingsRef.current
+      if (!s.alertsOn || !v) return
+      if (kind === 'hr' && v > s.hrHigh) alarm(`⚠️ Pulso alto: ${v} lpm (límite ${s.hrHigh})`)
+      else if (kind === 'hr' && v < s.hrLow) alarm(`⚠️ Pulso bajo: ${v} lpm (límite ${s.hrLow})`)
+      else if (kind === 'spo2' && v < s.spo2Low) alarm(`⚠️ Oxígeno bajo: ${v}% (límite ${s.spo2Low}%)`)
+    },
+    [alarm],
   )
 
-  // Android back button: close the result, then return to the Crear tab, then exit.
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return
-    const sub = CapApp.addListener('backButton', () => {
-      if (video) setVideo(null)
-      else if (tab !== 'create') setTab('create')
-      else CapApp.exitApp()
-    })
-    return () => {
-      sub.then((h) => h.remove())
-    }
-  }, [video, tab])
-
-  // Size the canvas to the image, capped for smooth recording.
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !image) return
-    const k = Math.min(1, MAX_SIDE / Math.max(image.width, image.height))
-    canvas.width = Math.round((image.width * k) / 2) * 2
-    canvas.height = Math.round((image.height * k) / 2) * 2
-  }, [image])
-
-  // Live looping preview.
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !image) return
-    const ctx = canvas.getContext('2d')!
-    const start = performance.now()
-    let raf = 0
-    const loop = () => {
-      if (!exportingRef.current) drawFrame(ctx, image, (performance.now() - start) / 1000, options)
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [image, options])
-
-  // A brand-new photo: drop every AI result computed for the previous one.
-  function setSource(img: Source) {
-    setBaseImage(img)
-    setImage(img)
-    setCutout(null)
-    setBgChoice('Original')
-    setDepth(null)
-    setUse3d(false)
-    setBokeh(0)
-  }
-
-  async function runAi<T>(job: () => Promise<T>): Promise<T | undefined> {
-    setError('')
-    setAiBusy({ pct: 0, label: 'Preparando IA…' })
+  const sync = useCallback(async () => {
     try {
-      return await job()
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setAiBusy(null)
-    }
-  }
-
-  const aiProgress = (pct: number, label: string) => setAiBusy({ pct, label })
-
-  async function buildDepth(img: Source) {
-    const map = await estimateDepth(img, aiProgress)
-    const renderer = new DepthRenderer(img, map, MAX_SIDE)
-    setDepth(renderer)
-    return renderer
-  }
-
-  async function toggle3d() {
-    if (!image) return
-    if (use3d) return setUse3d(false)
-    const ok = depth ?? (await runAi(() => buildDepth(image)))
-    if (ok) setUse3d(true)
-  }
-
-  async function changeBackground(choice: (typeof BACKGROUNDS)[number]) {
-    if (!baseImage) return
-    if (choice.id === 'original') {
-      setBgChoice(choice.name)
-      return applyEdited(baseImage)
-    }
-    if (choice.id === 'ai' && !bgPrompt.trim()) {
-      setBgChoice(choice.name)
-      return // wait for the scene description
-    }
-    await runAi(async () => {
-      const cut = cutout ?? (await removeBackground(baseImage, aiProgress))
-      setCutout(cut)
-      let bg: HTMLImageElement | undefined
-      if (choice.id === 'ai') {
-        aiProgress(100, 'Generando fondo con IA…')
-        const k = Math.min(1, 1280 / Math.max(baseImage.width, baseImage.height))
-        const a = { w: Math.round(baseImage.width * k), h: Math.round(baseImage.height * k), id: 'bg', label: '' }
-        bg = await loadImage(buildImageUrl({ prompt: `${bgPrompt.trim()}, background scenery, no people`, style: 'photo', aspect: a, model, seed: randomSeed() }))
+      setSyncing('Ajustando la hora…')
+      await ring.setTime().catch(() => {})
+      setSyncing('Leyendo batería…')
+      setBattery(await ring.battery().catch(() => undefined))
+      setHrCfg(await ring.hrSettings().catch(() => undefined))
+      setSpo2Auto(await ring.spo2Settings().catch(() => undefined))
+      const before = data.lastSync ?? 0
+      for (let i = 0; i < HISTORY_DAYS; i++) {
+        setSyncing(`Descargando historial (${i + 1}/${HISTORY_DAYS})…`)
+        const date = daysAgo(i)
+        const key = dayKey(date)
+        const hr = await ring.hrHistory(date).catch(() => null)
+        const steps = await ring.steps(i).catch(() => [])
+        setData((d) => ({
+          ...d,
+          hr: hr ? { ...d.hr, [key]: hr } : d.hr,
+          steps: steps.length ? { ...d.steps, [key]: steps } : d.steps,
+        }))
+        // Alert on new automatic readings recorded since the last sync.
+        if (i === 0 && hr) {
+          const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
+          const fromMin = before > daysAgo(0).getTime() ? (before - daysAgo(0).getTime()) / 60000 : 0
+          const recent = hr.values.map((v, j) => ({ v, m: j * hr.range })).filter((p) => p.v && p.m >= fromMin && p.m <= nowMin)
+          const last = recent[recent.length - 1]
+          const worst = recent.find((p) => p.v > settingsRef.current.hrHigh || p.v < settingsRef.current.hrLow)
+          if (worst) checkValue('hr', worst.v)
+          else if (last) checkValue('hr', last.v)
+        }
       }
-      setBgChoice(choice.name)
-      await applyEdited(composeSubject(baseImage, cut, choice.id as BackgroundMode, { color: choice.color, bg }))
-    })
-  }
-
-  // Shows an edited photo; keeps 3D mode working by re-estimating depth for it.
-  async function applyEdited(img: Source) {
-    setImage(img)
-    setDepth(null)
-    if (use3d) {
-      const ok = await runAi(() => buildDepth(img))
-      if (!ok) setUse3d(false)
-    }
-  }
-
-  async function improvePrompt() {
-    if (!prompt.trim()) return setError('Escribe primero una idea para mejorarla.')
-    setEnhancing(true)
-    setError('')
-    try {
-      setPrompt(await enhancePrompt(prompt.trim()))
+      if (bigData.current) {
+        setSyncing('Descargando sueño…')
+        const nights = await ring.sleep().catch(() => [])
+        setData((d) => {
+          const sleep = { ...d.sleep }
+          for (const n of nights) sleep[dayKey(daysAgo(n.daysAgo))] = { date: dayKey(daysAgo(n.daysAgo)), start: n.start, end: n.end, stages: n.stages }
+          return { ...d, sleep }
+        })
+      }
+      setData((d) => ({ ...d, lastSync: Date.now() }))
+      info('Datos actualizados.')
     } catch (e) {
-      setError((e as Error).message)
+      fail(e)
     } finally {
-      setEnhancing(false)
+      setSyncing('')
     }
-  }
+  }, [checkValue, data.lastSync])
 
-  async function generate() {
-    const text = prompt.trim() || PROMPT_IDEAS[Math.floor(Math.random() * PROMPT_IDEAS.length)]
-    if (!prompt.trim()) setPrompt(text)
-    const useSeed = lockSeed ? seed : randomSeed()
-    setSeed(useSeed)
-    setGenerating(true)
-    setError('')
-    ;(document.activeElement as HTMLElement | null)?.blur() // hide the mobile keyboard
-    const url = buildImageUrl({ prompt: text, style, aspect, model, seed: useSeed })
+  const connectTo = useCallback(
+    async (dev: FoundDevice, quiet = false) => {
+      setStatus('connecting')
+      if (!quiet) setNotice(undefined)
+      try {
+        const res = await transport.connect(dev.deviceId)
+        bigData.current = res.bigData
+        setSettings((s) => ({ ...s, deviceId: dev.deviceId, deviceName: dev.name || res.name || s.deviceName }))
+        setStatus('connected')
+        setDevices([])
+        void sync()
+      } catch (e) {
+        setStatus('idle')
+        if (!quiet) fail(e)
+      }
+    },
+    [sync],
+  )
+
+  // Reconnect to the saved ring when the app opens.
+  const autoTried = useRef(false)
+  useEffect(() => {
+    if (autoTried.current || !settings.deviceId || !bluetoothAvailable) return
+    autoTried.current = true
+    void connectTo({ deviceId: settings.deviceId, name: settings.deviceName ?? 'Anillo' }, true)
+  }, [connectTo, settings.deviceId, settings.deviceName])
+
+  const scan = async () => {
+    setDevices([])
+    setNotice(undefined)
+    setStatus('scanning')
     try {
-      setSource(await loadImage(url))
-      const item: GalleryItem = { id: crypto.randomUUID(), url, prompt: text, aspect: aspectId, createdAt: Date.now() }
-      const next = [item, ...gallery]
-      setGallery(next)
-      saveGallery(next)
-      setTab('motion')
+      const found: FoundDevice[] = []
+      await transport.scan((d) => {
+        found.push(d)
+        setDevices((list) => [...list.filter((x) => x.deviceId !== d.deviceId), d].sort((a, b) => likelyRing(b) - likelyRing(a) || (b.rssi ?? -999) - (a.rssi ?? -999)))
+      })
+      setStatus('idle')
+      // Web Bluetooth returns exactly the device the user picked: connect straight away.
+      if (transport.chooser && found[0]) await connectTo(found[0])
+      else if (found.length === 0) info('No encontré el anillo. Cierra la app QRing (o desvincúlalo allí) y vuelve a buscar.')
     } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setGenerating(false)
+      setStatus('idle')
+      if ((e as Error).name !== 'NotFoundError') fail(e)
     }
   }
 
-  async function openFromGallery(item: GalleryItem) {
-    setGenerating(true)
-    setError('')
+  const disconnect = async () => {
+    await transport.disconnect()
+    setStatus('idle')
+    setBattery(undefined)
+  }
+
+  const measure = async (kind: Reading) => {
+    setLive({ kind, running: true })
+    setNotice(undefined)
     try {
-      setSource(await loadImage(item.url))
-      setPrompt(item.prompt)
-      setTab('motion')
+      const value = await ring.measure(kind, (v) => setLive({ kind, value: v, running: true }))
+      setLive({ kind, value, running: false })
+      setData((d) => ({ ...d, spots: [...d.spots, { t: Date.now(), kind, value }].slice(-500) }))
+      checkValue(kind, value)
     } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setGenerating(false)
+      setLive(undefined)
+      fail(e)
     }
   }
 
-  function removeFromGallery(id: string) {
-    const next = gallery.filter((g) => g.id !== id)
-    setGallery(next)
-    saveGallery(next)
-  }
-
-  async function onUpload(file: File | undefined) {
-    if (!file) return
-    setError('')
+  const run = (fn: () => Promise<unknown>, ok?: string) => async () => {
     try {
-      setSource(await loadImage(URL.createObjectURL(file)))
-      setTab('motion')
-    } catch {
-      setError('No se pudo leer esa imagen.')
-    }
-  }
-
-  async function exportVideo() {
-    const canvas = canvasRef.current
-    if (!canvas || !image) return
-    const ctx = canvas.getContext('2d')!
-    exportingRef.current = true
-    setExporting(true)
-    setProgress(0)
-    setError('')
-    try {
-      const { blob, ext } = await recordVideo(canvas, (t) => drawFrame(ctx, image, t, options), duration, setProgress)
-      if (video) URL.revokeObjectURL(video.url)
-      setVideo({ url: URL.createObjectURL(blob), blob, ext })
+      await fn()
+      if (ok) info(ok)
     } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      exportingRef.current = false
-      setExporting(false)
+      fail(e)
     }
   }
 
-  async function share() {
-    if (!video) return
-    try {
-      await shareVideo(video.blob, `picap-${presetId}-${Date.now()}.${video.ext}`)
-    } catch (e) {
-      const msg = (e as Error).message ?? ''
-      if (!/cancel/i.test(msg)) setError(`No se pudo compartir: ${msg}`)
-    }
-  }
+  const connected = status === 'connected'
+  const busy = !!syncing || !!live?.running
+  const todayKey = dayKey(daysAgo(0))
+  const today = dayTotals(data.steps[todayKey])
+  const todayHr = data.hr[todayKey]?.values.filter(Boolean) ?? []
+  const lastSpot = (k: Reading) => [...data.spots].reverse().find((s) => s.kind === k)
+  const lastHr = lastSpot('hr')
+  const lastSpo2 = lastSpot('spo2')
+  const lastNight = data.sleep[todayKey]
+  const hDate = daysAgo(historyDay)
+  const hKey = dayKey(hDate)
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="logo">
-          <span className="logo-mark">◉</span> Picap
+          <span className="logo-mark">◯</span> Mi Anillo
         </div>
-        {Capacitor.isNativePlatform() ? (
-          <span className="free-badge">Gratis</span>
-        ) : (
-          <a className="free-badge" href="./PicapStudio.apk" download>
-            ⬇ App Android
-          </a>
-        )}
+        <div className={`conn ${status}`}>
+          <i />
+          {status === 'connected' ? (battery ? `${battery.level}%${battery.charging ? ' ⚡' : ''}` : 'Conectado') : status === 'connecting' ? 'Conectando…' : status === 'scanning' ? 'Buscando…' : 'Desconectado'}
+        </div>
       </header>
 
-      <section className="stage">
-        <div className={`frame ${image ? '' : 'empty'}`} style={{ '--r': image ? image.width / image.height : aspect.w / aspect.h } as CSSProperties}>
-          <canvas ref={canvasRef} hidden={!image} />
-          {!image && !generating && (
-            <div className="placeholder">
-              <p>Crea tu primer clip</p>
-              <small>Genera o sube una imagen y dale movimiento de cámara cinematográfico</small>
-            </div>
-          )}
-          {generating && (
-            <div className="loader">
-              <span /> Creando imagen…
-            </div>
-          )}
-          {aiBusy && (
-            <div className="loader">
-              <span />
-              {aiBusy.label}
-              {aiBusy.pct > 0 && aiBusy.pct < 100 && <progress max={100} value={aiBusy.pct} />}
-            </div>
-          )}
-          {exporting && <div className="rec">● REC {Math.round(progress * 100)}%</div>}
-          {image && !exporting && (
-            <div className="frame-tag">
-              {use3d && '3D · '}
-              {preset.name}
-              {effect !== 'none' && ` · ${EFFECTS.find((e) => e.id === effect)?.name}`}
-            </div>
-          )}
+      {notice && (
+        <div className={`notice ${notice.kind}`} role="status" onClick={() => setNotice(undefined)}>
+          {notice.text}
         </div>
-        {image && (
-          <button className="primary fab" onClick={exportVideo} disabled={exporting || !!aiBusy}>
-            {exporting ? `Grabando ${Math.round(progress * 100)}%` : '▶ Crear video'}
-          </button>
-        )}
-      </section>
+      )}
+      {syncing && <div className="notice info">{syncing}</div>}
 
-      <section className="sheet">
-        {error && (
-          <p className="error" onClick={() => setError('')}>
-            {error}
-          </p>
-        )}
-
-        {tab === 'create' && (
-          <div className="stack">
-            <div className="prompt-box">
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe tu escena… (vacío = idea aleatoria)"
-                rows={3}
-                enterKeyHint="go"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    generate()
-                  }
-                }}
-              />
-              <div className="prompt-actions">
-                <label className="ghost upload">
-                  <input type="file" accept="image/*" onChange={(e) => onUpload(e.target.files?.[0])} />＋ Foto
-                </label>
-                <button className="ghost" onClick={improvePrompt} disabled={enhancing || generating} title="Mejorar prompt con IA">
-                  {enhancing ? '…' : '✨'}
-                </button>
-                <button className="primary" onClick={generate} disabled={generating}>
-                  {generating ? 'Generando…' : '✦ Generar'}
-                </button>
-              </div>
-            </div>
-
-            <div className="field">
-              <span>Estilo</span>
-              <div className="scroller">
-                {STYLES.map((s) => (
-                  <button key={s.id} className={`chip ${style === s.id ? 'active' : ''}`} onClick={() => setStyle(s.id)}>
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="field">
-              <span>Formato</span>
-              <div className="scroller">
-                {ASPECTS.map((a) => (
-                  <button key={a.id} className={`chip ${aspectId === a.id ? 'active' : ''}`} onClick={() => setAspectId(a.id)}>
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="field">
-              <span>Modelo</span>
-              <div className="scroller">
-                {MODELS.map((m) => (
-                  <button key={m.id} className={`chip ${model === m.id ? 'active' : ''}`} onClick={() => setModel(m.id)}>
-                    {m.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="field">
-              <span>
-                <input type="checkbox" checked={lockSeed} onChange={(e) => setLockSeed(e.target.checked)} /> Seed fija
-              </span>
-              <input type="number" inputMode="numeric" value={seed} onChange={(e) => setSeed(Number(e.target.value) || 0)} disabled={!lockSeed} />
-            </div>
-          </div>
+      <main className="content">
+        {!bluetoothAvailable && (
+          <section className="card warn">
+            <h2>Bluetooth no disponible</h2>
+            <p>
+              Este navegador no puede conectarse al anillo. Instala la <b>app de Android</b> (descárgala abajo) o abre esta página en <b>Chrome</b>. Safari en iPhone no permite
+              Bluetooth en páginas web.
+            </p>
+            <a className="btn primary" href="./MiAnillo.apk">
+              Descargar app Android
+            </a>
+          </section>
         )}
 
-        {tab === 'motion' && (
-          <div className="stack">
-            <div className="presets">
-              {MOTION_PRESETS.map((p) => (
-                <button key={p.id} className={`preset ${presetId === p.id ? 'active' : ''}`} onClick={() => setPresetId(p.id)}>
-                  <b>{p.name}</b>
-                  <small>{p.description}</small>
+        {bluetoothAvailable && !connected && (
+          <section className="card">
+            <h2>{settings.deviceId ? settings.deviceName ?? 'Tu anillo' : 'Conecta tu anillo'}</h2>
+            <p className="muted">
+              Ponte el anillo o déjalo cargando cerca del teléfono. Si la app <b>QRing</b> está abierta, ciérrala: el anillo solo acepta una conexión a la vez.
+            </p>
+            <div className="row">
+              {settings.deviceId && (
+                <button className="btn primary" disabled={status !== 'idle'} onClick={() => connectTo({ deviceId: settings.deviceId!, name: settings.deviceName ?? '' })}>
+                  Reconectar
                 </button>
-              ))}
-            </div>
-            <Sliders duration={duration} setDuration={setDuration} intensity={intensity} setIntensity={setIntensity} />
-          </div>
-        )}
-
-        {tab === 'ai' &&
-          (!image ? (
-            <p className="hint center">Primero genera o sube una imagen.</p>
-          ) : (
-            <div className="stack">
-              <div className="ai-card">
-                <div>
-                  <b>Movimiento 3D</b>
-                  <small>La IA calcula la profundidad: lo cercano se mueve más que el fondo, como una cámara real.</small>
-                </div>
-                <button className={`toggle ${use3d ? 'on' : ''}`} onClick={toggle3d} disabled={!!aiBusy}>
-                  {use3d ? 'Activado' : 'Activar'}
-                </button>
-              </div>
-              {use3d && (
-                <label className="slider-row">
-                  Desenfoque de fondo (bokeh) <b>{Math.round(bokeh * 100)}%</b>
-                  <input type="range" min={0} max={1} step={0.05} value={bokeh} onChange={(e) => setBokeh(Number(e.target.value))} />
-                </label>
               )}
+              <button className={`btn ${settings.deviceId ? '' : 'primary'}`} disabled={status !== 'idle'} onClick={scan}>
+                {status === 'scanning' ? 'Buscando…' : 'Buscar anillo'}
+              </button>
+              {status === 'scanning' && !transport.chooser && (
+                <button className="btn" onClick={() => transport.stopScan()}>
+                  Parar
+                </button>
+              )}
+            </div>
+            {devices.length > 0 && (
+              <ul className="devices">
+                {devices.map((d) => (
+                  <li key={d.deviceId}>
+                    <button onClick={() => connectTo(d)} disabled={status === 'connecting'}>
+                      <span>
+                        <b>{d.name}</b>
+                        {likelyRing(d) ? <em className="tag">anillo</em> : null}
+                        <small>{d.deviceId}</small>
+                      </span>
+                      {d.rssi != null && <small>{signal(d.rssi)}</small>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
-              <div className="field">
-                <span>Cambiar fondo con IA</span>
-                <div className="scroller">
-                  {BACKGROUNDS.map((b) => (
-                    <button key={b.name} className={`chip ${bgChoice === b.name ? 'active' : ''}`} onClick={() => changeBackground(b)} disabled={!!aiBusy}>
-                      {b.color && <i className="swatch" style={{ background: b.color }} />}
-                      {b.name}
-                    </button>
-                  ))}
+        {tab === 'hoy' && (
+          <>
+            <section className="card hero">
+              <GoalRing value={today.steps} goal={settings.stepGoal} label="pasos" />
+              <div className="hero-stats">
+                <div>
+                  <small>Calorías</small>
+                  <b>{Math.round(today.calories / 1000).toLocaleString('es')}</b> kcal
                 </div>
-                {bgChoice === '✨ Fondo con IA' && (
-                  <div className="prompt-actions">
-                    <input
-                      className="text-input"
-                      value={bgPrompt}
-                      onChange={(e) => setBgPrompt(e.target.value)}
-                      placeholder="Ej: playa al atardecer, ciudad de neón…"
-                      enterKeyHint="go"
-                      onKeyDown={(e) => e.key === 'Enter' && changeBackground(BACKGROUNDS[2])}
-                    />
-                    <button className="primary" onClick={() => changeBackground(BACKGROUNDS[2])} disabled={!!aiBusy || !bgPrompt.trim()}>
-                      Aplicar
-                    </button>
-                  </div>
+                <div>
+                  <small>Distancia</small>
+                  <b>{(today.distance / 1000).toFixed(2)}</b> km
+                </div>
+                <div>
+                  <small>Meta</small>
+                  <b>{Math.min(100, Math.round((today.steps / settings.stepGoal) * 100))}</b> %
+                </div>
+              </div>
+            </section>
+
+            <section className="grid2">
+              <Metric
+                title="Pulso"
+                unit="lpm"
+                icon="♥"
+                value={live?.kind === 'hr' ? live.value : lastHr?.value ?? todayHr[todayHr.length - 1]}
+                sub={live?.kind === 'hr' && live.running ? 'Midiendo… no te muevas' : lastHr ? `Medido ${ago(lastHr.t)}` : todayHr.length ? 'Última lectura automática' : 'Sin datos'}
+                running={live?.kind === 'hr' && live.running}
+                onMeasure={connected && !busy ? () => measure('hr') : undefined}
+              />
+              <Metric
+                title="Oxígeno"
+                unit="%"
+                icon="O₂"
+                value={live?.kind === 'spo2' ? live.value : lastSpo2?.value}
+                sub={live?.kind === 'spo2' && live.running ? 'Midiendo… hasta 30 s' : lastSpo2 ? `Medido ${ago(lastSpo2.t)}` : 'Sin datos'}
+                running={live?.kind === 'spo2' && live.running}
+                onMeasure={connected && !busy ? () => measure('spo2') : undefined}
+              />
+            </section>
+
+            <section className="card">
+              <div className="card-head">
+                <h2>Pulso de hoy</h2>
+                {connected && (
+                  <button className="link" disabled={busy} onClick={sync}>
+                    Actualizar
+                  </button>
                 )}
               </div>
-              <small className="hint">
-                La IA corre en tu teléfono, gratis. La primera vez descarga los modelos (~25–45 MB cada uno); después funciona más rápido.
-              </small>
-            </div>
-          ))}
+              <HrChart day={data.hr[todayKey]} low={settings.hrLow} high={settings.hrHigh} />
+            </section>
 
-        {tab === 'effects' && (
-          <div className="stack">
-            <div className="effects">
-              {EFFECTS.map((e) => (
-                <button key={e.id} className={`effect fx-${e.id} ${effect === e.id ? 'active' : ''}`} onClick={() => setEffect(e.id)}>
-                  {e.name}
-                </button>
-              ))}
-            </div>
-            <Sliders duration={duration} setDuration={setDuration} intensity={intensity} setIntensity={setIntensity} />
-          </div>
+            <section className="card">
+              <h2>Sueño de anoche</h2>
+              {lastNight ? (
+                <>
+                  <p className="big">
+                    {Math.floor(sleepMinutes(lastNight).asleep / 60)} h {sleepMinutes(lastNight).asleep % 60} min
+                  </p>
+                  <SleepChart night={lastNight} />
+                </>
+              ) : (
+                <p className="empty">Sin datos de sueño todavía. Duerme con el anillo puesto y sincroniza por la mañana.</p>
+              )}
+            </section>
+            {data.lastSync && <p className="foot muted">Última sincronización: {new Date(data.lastSync).toLocaleString('es')}</p>}
+          </>
         )}
 
-        {tab === 'gallery' &&
-          (gallery.length === 0 ? (
-            <p className="hint center">Aún no has generado imágenes.</p>
-          ) : (
-            <div className="grid">
-              {gallery.map((g) => (
-                <figure key={g.id}>
-                  <img src={g.url} alt={g.prompt} loading="lazy" onClick={() => openFromGallery(g)} />
-                  <button onClick={() => removeFromGallery(g.id)} aria-label="Eliminar">
-                    ✕
+        {tab === 'historial' && (
+          <>
+            <nav className="days">
+              {Array.from({ length: HISTORY_DAYS }, (_, i) => {
+                const d = daysAgo(i)
+                return (
+                  <button key={i} className={historyDay === i ? 'on' : ''} onClick={() => setHistoryDay(i)}>
+                    <small>{i === 0 ? 'Hoy' : i === 1 ? 'Ayer' : WEEKDAY.format(d)}</small>
+                    <b>{d.getDate()}</b>
                   </button>
-                </figure>
-              ))}
-            </div>
-          ))}
-      </section>
+                )
+              })}
+            </nav>
+            <section className="card">
+              <h2>Pulso</h2>
+              <HrChart day={data.hr[hKey]} low={settings.hrLow} high={settings.hrHigh} />
+            </section>
+            <section className="card">
+              <div className="card-head">
+                <h2>Pasos por hora</h2>
+                <span className="muted">{dayTotals(data.steps[hKey]).steps.toLocaleString('es')} pasos</span>
+              </div>
+              <StepsChart slots={data.steps[hKey]} />
+            </section>
+            <section className="card">
+              <h2>Sueño (noche que terminó este día)</h2>
+              <SleepChart night={data.sleep[hKey]} />
+            </section>
+            <section className="card">
+              <h2>Mediciones manuales</h2>
+              {(() => {
+                const spots = data.spots.filter((s) => dayKey(new Date(s.t)) === hKey).reverse()
+                if (!spots.length) return <p className="empty">Ninguna este día.</p>
+                return (
+                  <ul className="spots">
+                    {spots.map((s) => (
+                      <li key={s.t}>
+                        <span>{new Date(s.t).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>{s.kind === 'hr' ? 'Pulso' : 'Oxígeno'}</span>
+                        <b>
+                          {s.value} {s.kind === 'hr' ? 'lpm' : '%'}
+                        </b>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              })()}
+            </section>
+            <p className="foot muted">{hDate.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          </>
+        )}
 
-      <nav className="tabbar">
-        {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
-            <i>{t.icon}</i>
-            {t.label}
+        {tab === 'ajustes' && (
+          <>
+            <section className="card">
+              <h2>Medición automática</h2>
+              {!connected && <p className="muted">Conecta el anillo para cambiar estos ajustes.</p>}
+              <label className="toggle">
+                <span>
+                  Pulso automático
+                  <small>El anillo mide solo cada cierto tiempo (gasta algo más de batería).</small>
+                </span>
+                <input
+                  type="checkbox"
+                  disabled={!connected || busy || !hrCfg}
+                  checked={!!hrCfg?.enabled}
+                  onChange={(e) => {
+                    const next = { enabled: e.target.checked, interval: hrCfg?.interval || 30 }
+                    void run(async () => {
+                      await ring.setHrSettings(next.enabled, next.interval)
+                      setHrCfg(next)
+                    }, 'Ajuste guardado en el anillo.')()
+                  }}
+                />
+              </label>
+              <label className="field">
+                <span>Cada</span>
+                <select
+                  disabled={!connected || busy || !hrCfg?.enabled}
+                  value={hrCfg?.interval || 30}
+                  onChange={(e) => {
+                    const next = { enabled: true, interval: Number(e.target.value) }
+                    void run(async () => {
+                      await ring.setHrSettings(true, next.interval)
+                      setHrCfg(next)
+                    }, 'Ajuste guardado en el anillo.')()
+                  }}
+                >
+                  {[...new Set([...INTERVALS, hrCfg?.interval || 30])]
+                    .sort((a, b) => a - b)
+                    .map((m) => (
+                      <option key={m} value={m}>
+                        {m} minutos
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="toggle">
+                <span>
+                  Oxígeno automático
+                  <small>Mide SpO₂ de forma periódica, sobre todo durante el sueño.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  disabled={!connected || busy || spo2Auto === undefined}
+                  checked={!!spo2Auto}
+                  onChange={(e) => {
+                    const v = e.target.checked
+                    void run(async () => {
+                      await ring.setSpo2Settings(v)
+                      setSpo2Auto(v)
+                    }, 'Ajuste guardado en el anillo.')()
+                  }}
+                />
+              </label>
+            </section>
+
+            <section className="card">
+              <h2>Alertas</h2>
+              <label className="toggle">
+                <span>
+                  Avisarme
+                  <small>Vibra y muestra un aviso si una lectura sale de estos límites.</small>
+                </span>
+                <input type="checkbox" checked={settings.alertsOn} onChange={(e) => setSettings({ ...settings, alertsOn: e.target.checked })} />
+              </label>
+              <NumberField label="Pulso alto (lpm)" value={settings.hrHigh} min={60} max={220} onChange={(v) => setSettings({ ...settings, hrHigh: v })} />
+              <NumberField label="Pulso bajo (lpm)" value={settings.hrLow} min={25} max={100} onChange={(v) => setSettings({ ...settings, hrLow: v })} />
+              <NumberField label="Oxígeno bajo (%)" value={settings.spo2Low} min={80} max={99} onChange={(v) => setSettings({ ...settings, spo2Low: v })} />
+              <NumberField label="Meta de pasos" value={settings.stepGoal} min={1000} max={50000} step={500} onChange={(v) => setSettings({ ...settings, stepGoal: v })} />
+              <p className="muted small">Las alertas son orientativas; el anillo no es un dispositivo médico.</p>
+            </section>
+
+            <section className="card">
+              <h2>Anillo</h2>
+              <div className="row wrap">
+                <button className="btn" disabled={!connected || busy} onClick={run(() => ring.find(), 'El anillo debería encenderse o vibrar.')}>
+                  Buscar mi anillo
+                </button>
+                <button className="btn" disabled={!connected || busy} onClick={sync}>
+                  Sincronizar
+                </button>
+                <button
+                  className="btn"
+                  disabled={!connected || busy}
+                  onClick={run(async () => {
+                    const b = await ring.battery()
+                    setBattery(b)
+                    info(`Batería: ${b.level}%${b.charging ? ' (cargando)' : ''}`)
+                  })}
+                >
+                  Batería
+                </button>
+                {connected && (
+                  <button className="btn" onClick={disconnect}>
+                    Desconectar
+                  </button>
+                )}
+              </div>
+              {settings.deviceId && (
+                <p className="muted small">
+                  {settings.deviceName} · {settings.deviceId}{' '}
+                  <button
+                    className="link"
+                    onClick={async () => {
+                      await disconnect()
+                      setSettings({ ...settings, deviceId: undefined, deviceName: undefined })
+                    }}
+                  >
+                    Olvidar
+                  </button>
+                </p>
+              )}
+            </section>
+
+            <section className="card">
+              <h2>Tus datos</h2>
+              <p className="muted small">Se guardan solo en este teléfono. Puedes exportarlos a Excel/Sheets en formato CSV.</p>
+              <div className="row wrap">
+                <button className="btn primary" onClick={run(() => shareText(toCsvSafe(data), `anillo-${todayKey}.csv`))}>
+                  Exportar CSV
+                </button>
+                <button
+                  className="btn danger"
+                  onClick={() => {
+                    if (confirm('¿Borrar todo el historial guardado en el teléfono? Lo que siga en el anillo se puede volver a descargar.')) setData({ hr: {}, steps: {}, sleep: {}, spots: [] })
+                  }}
+                >
+                  Borrar historial
+                </button>
+              </div>
+            </section>
+
+            <section className="card">
+              <div className="card-head">
+                <h2>Registro técnico</h2>
+                <button className="link" onClick={() => setShowLog(!showLog)}>
+                  {showLog ? 'Ocultar' : 'Mostrar'}
+                </button>
+              </div>
+              <p className="muted small">Muestra los paquetes Bluetooth. Las líneas con ★ son eventos que envía el anillo por su cuenta (toques, gestos…).</p>
+              {showLog && (
+                <>
+                  <div className="row">
+                    <button className="btn" onClick={run(() => shareText(log.join('\n'), 'registro-anillo.txt', 'text/plain'))}>
+                      Compartir registro
+                    </button>
+                    <button className="btn" onClick={() => setLog([])}>
+                      Limpiar
+                    </button>
+                  </div>
+                  <pre className="log">{log.join('\n') || 'Vacío'}</pre>
+                </>
+              )}
+            </section>
+            <p className="foot muted">Mi Anillo · {isNative ? 'app Android' : 'versión web'} · Compatible con anillos que usan la app QRing</p>
+          </>
+        )}
+      </main>
+
+      <nav className="tabs">
+        {(
+          [
+            ['hoy', '◉', 'Hoy'],
+            ['historial', '▤', 'Historial'],
+            ['ajustes', '⚙', 'Ajustes'],
+          ] as const
+        ).map(([id, icon, label]) => (
+          <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
+            <span>{icon}</span>
+            {label}
           </button>
         ))}
       </nav>
-
-      {video && (
-        <div className="modal">
-          <video src={video.url} controls autoPlay loop playsInline />
-          <div className="modal-actions">
-            <button className="ghost" onClick={() => setVideo(null)}>
-              Cerrar
-            </button>
-            <button className="primary" onClick={share}>
-              ⇪ Guardar / Compartir
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-function Sliders(p: { duration: number; setDuration: (n: number) => void; intensity: number; setIntensity: (n: number) => void }) {
+function Metric(props: { title: string; unit: string; icon: string; value?: number; sub: string; running?: boolean; onMeasure?: () => void }) {
   return (
-    <div className="sliders">
-      <label>
-        Duración <b>{p.duration}s</b>
-        <input type="range" min={2} max={10} step={1} value={p.duration} onChange={(e) => p.setDuration(Number(e.target.value))} />
-      </label>
-      <label>
-        Intensidad <b>{p.intensity.toFixed(1)}x</b>
-        <input type="range" min={0.3} max={2} step={0.1} value={p.intensity} onChange={(e) => p.setIntensity(Number(e.target.value))} />
-      </label>
-    </div>
+    <section className={`card metric ${props.running ? 'running' : ''}`}>
+      <div className="metric-head">
+        <span className="metric-icon">{props.icon}</span>
+        {props.title}
+      </div>
+      <div className="metric-value">
+        {props.value || '--'}
+        <small>{props.unit}</small>
+      </div>
+      <small className="muted">{props.sub}</small>
+      <button className="btn small" disabled={!props.onMeasure} onClick={props.onMeasure}>
+        {props.running ? 'Midiendo…' : 'Medir ahora'}
+      </button>
+    </section>
   )
+}
+
+function NumberField(props: { label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void }) {
+  const [text, setText] = useState(String(props.value))
+  useEffect(() => setText(String(props.value)), [props.value])
+  return (
+    <label className="field">
+      <span>{props.label}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={props.min}
+        max={props.max}
+        step={props.step ?? 1}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          const v = Math.round(Number(text))
+          if (Number.isFinite(v) && v >= props.min && v <= props.max) props.onChange(v)
+          else setText(String(props.value))
+        }}
+      />
+    </label>
+  )
+}
+
+/** QRing-family rings advertise names like "R02_A1B2", "R06_…", "R10_…", "COLMI…" or the retailer's name. */
+function likelyRing(d: FoundDevice) {
+  return /^(R\d{2}|COLMI|QRING|RING|KOR|K[ÖO]R|LEOTEC|SR\d|H59|RY\d)/i.test(d.name) || /ring|anillo|k[öo]r/i.test(d.name) ? 1 : 0
+}
+
+function signal(rssi: number) {
+  return rssi > -60 ? '▂▄▆█' : rssi > -75 ? '▂▄▆' : rssi > -88 ? '▂▄' : '▂'
+}
+
+function ago(t: number) {
+  const m = Math.round((Date.now() - t) / 60000)
+  if (m < 1) return 'ahora mismo'
+  if (m < 60) return `hace ${m} min`
+  const h = Math.round(m / 60)
+  if (h < 24) return `hace ${h} h`
+  return new Date(t).toLocaleDateString('es')
+}
+
+function toCsvSafe(d: Data) {
+  // Excel opens UTF-8 CSV correctly (ñ, tildes) when it starts with a BOM.
+  return '\uFEFF' + toCsv(d)
 }

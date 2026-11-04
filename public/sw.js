@@ -1,6 +1,5 @@
 // Minimal offline support: network-first for the app shell, cache as fallback.
-// Generated images (other origins) are never cached here.
-const CACHE = 'picap-v1'
+const CACHE = 'mianillo-v1'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))

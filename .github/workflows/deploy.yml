@@ -5,7 +5,7 @@ on:
   workflow_run:
     workflows: [Build Android APK]
     types: [completed]
-    branches: [main, claude/higgsfield-like-app-6htso1]
+    branches: [main, claude/higgsfield-like-app-6htso1, claude/sweet-pascal-3lx8vn]
   workflow_dispatch:
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
       - name: Mirror latest APK on the site
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download --repo "${{ github.repository }}" --pattern 'PicapStudio.apk' --dir dist
+        run: gh release download --repo "${{ github.repository }}" --pattern 'MiAnillo.apk' --dir dist
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

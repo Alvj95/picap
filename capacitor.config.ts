@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'com.picap.studio',
-  appName: 'Picap Studio',
+  appId: 'com.mianillo.app',
+  appName: 'Mi Anillo',
   webDir: 'dist',
   backgroundColor: '#0b0b0d',
 }
