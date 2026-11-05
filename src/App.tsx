@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ActivityRings, HrChart, SleepChart, StepsChart } from './Charts'
+import { ActivityRings, HalfHourChart, HrChart, SleepChart, StepsChart } from './Charts'
 import {
   IconBattery,
   IconBluetooth,
@@ -19,9 +19,12 @@ import {
 import { BreatheScreen } from './Breathe'
 import { CameraScreen } from './Camera'
 import { AwardsScreen, StreakChip, WeekSummary } from './Insights'
-import { WorkoutTab } from './Workout'
+import { GamesScreen } from './Games'
+import { GesturesScreen } from './Gestures'
+import { onRingInput } from './lib/ringInput'
+import { tracker, WorkoutTab } from './Workout'
 import { bluetoothAvailable, isNative, phoneNotifications, toHex, transport, type FoundDevice, type NotifyConfig, type NotifyKind } from './lib/ble'
-import { ring, type Reading } from './lib/ring'
+import { CMD, ring, type Reading } from './lib/ring'
 import { shareText } from './lib/share'
 import {
   dayKey,
@@ -39,7 +42,7 @@ import {
 
 type Status = 'idle' | 'scanning' | 'connecting' | 'connected'
 type Tab = 'hoy' | 'entreno' | 'historial' | 'ajustes'
-type Screen = 'camera' | 'breathe' | 'awards'
+type Screen = 'camera' | 'breathe' | 'awards' | 'gestures' | 'games'
 const NOTIFY_KINDS: [NotifyKind, string][] = [
   ['call', '📞 Llamadas'],
   ['whatsapp', '💬 WhatsApp'],
@@ -64,6 +67,8 @@ export default function App() {
   const [battery, setBattery] = useState<{ level: number; charging: boolean }>()
   const [hrCfg, setHrCfg] = useState<{ enabled: boolean; interval: number }>()
   const [spo2Auto, setSpo2Auto] = useState<boolean>()
+  const [stressAuto, setStressAuto] = useState<boolean>()
+  const [hrvAuto, setHrvAuto] = useState<boolean>()
   const [live, setLive] = useState<{ kind: Reading; value?: number; running: boolean }>()
   const [notice, setNotice] = useState<{ text: string; kind: 'info' | 'error' | 'alert' }>()
   const [log, setLog] = useState<string[]>([])
@@ -121,6 +126,8 @@ export default function App() {
       setBattery(await ring.battery().catch(() => undefined))
       setHrCfg(await ring.hrSettings().catch(() => undefined))
       setSpo2Auto(await ring.spo2Settings().catch(() => undefined))
+      setStressAuto(await ring.autoSetting(CMD.STRESS_SETTINGS).catch(() => undefined))
+      setHrvAuto(await ring.autoSetting(CMD.HRV_SETTINGS).catch(() => undefined))
       const before = data.lastSync ?? 0
       for (let i = 0; i < HISTORY_DAYS; i++) {
         setSyncing(`Descargando historial (${i + 1}/${HISTORY_DAYS})…`)
@@ -144,6 +151,15 @@ export default function App() {
           else if (last) checkValue('hr', last.v)
         }
       }
+      setSyncing('Descargando estrés y HRV…')
+      const stress = await ring.halfHourLog(CMD.STRESS_HISTORY).catch(() => null)
+      const hrv = await ring.halfHourLog(CMD.HRV_HISTORY).catch(() => null)
+      const tk = dayKey(daysAgo(0))
+      setData((d) => ({
+        ...d,
+        stress: stress ? { ...(d.stress ?? {}), [tk]: stress } : d.stress,
+        hrv: hrv ? { ...(d.hrv ?? {}), [tk]: hrv } : d.hrv,
+      }))
       if (bigData.current) {
         setSyncing('Descargando sueño…')
         const nights = await ring.sleep().catch(() => [])
@@ -238,6 +254,29 @@ export default function App() {
     document.addEventListener('visibilitychange', refresh)
     return () => document.removeEventListener('visibilitychange', refresh)
   }, [])
+  // Ring gesture mapped to "workout": start a run, or stop and save the current one.
+  useEffect(
+    () =>
+      onRingInput((hex) => {
+        const sig = Object.entries(settingsRef.current.gestures ?? {}).find(([pre, act]) => act === 'workout' && hex.startsWith(pre))
+        if (!sig || screenRef.current === 'gestures') return
+        if (!tracker.state.running) {
+          tracker.start()
+          setTab('entreno')
+          info('Entreno iniciado desde el anillo 🏃')
+        } else {
+          const w = tracker.stop('run')
+          if (w) {
+            setData((d) => ({ ...d, workouts: [...(d.workouts ?? []), w] }))
+            info(`Entreno guardado: ${(w.distance / 1000).toFixed(2)} km`)
+          }
+        }
+      }),
+    [],
+  )
+  const screenRef = useRef(screen)
+  screenRef.current = screen
+
   const updateNotify = (c: Partial<Omit<NotifyConfig, 'access'>>) => void phoneNotifications?.set(c).then(setNotifyCfg, fail)
 
   const run = (fn: () => Promise<unknown>, ok?: string) => async () => {
@@ -410,6 +449,14 @@ export default function App() {
                 <span className="tool-icon award">🏆</span>
                 Logros
               </button>
+              <button onClick={() => setScreen('games')}>
+                <span className="tool-icon game">🎮</span>
+                Juegos
+              </button>
+              <button onClick={() => setScreen('gestures')}>
+                <span className="tool-icon gesture">👆</span>
+                Gestos
+              </button>
               <button onClick={() => setTab('ajustes')}>
                 <span className="tool-icon bell">🔔</span>
                 Avisos
@@ -517,6 +564,14 @@ export default function App() {
               <HrChart day={data.hr[hKey]} low={settings.hrLow} high={settings.hrHigh} />
             </section>
             <section className="card">
+              <h2>😌 Estrés</h2>
+              <HalfHourChart values={data.stress?.[hKey]} kind="stress" />
+            </section>
+            <section className="card">
+              <h2>💓 Variabilidad del pulso (HRV)</h2>
+              <HalfHourChart values={data.hrv?.[hKey]} kind="hrv" />
+            </section>
+            <section className="card">
               <div className="card-head">
                 <h2>Pasos por hora</h2>
                 <span className="muted">{dayTotals(data.steps[hKey]).steps.toLocaleString('es')} pasos</span>
@@ -610,6 +665,42 @@ export default function App() {
                     void run(async () => {
                       await ring.setSpo2Settings(v)
                       setSpo2Auto(v)
+                    }, 'Ajuste guardado en el anillo.')()
+                  }}
+                />
+              </label>
+              <label className="toggle">
+                <span>
+                  Estrés automático
+                  <small>Cada 30 min. Si tu anillo no lo admite, el interruptor no se activará.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  disabled={!connected || busy || stressAuto === undefined}
+                  checked={!!stressAuto}
+                  onChange={(e) => {
+                    const v = e.target.checked
+                    void run(async () => {
+                      await ring.setAutoSetting(CMD.STRESS_SETTINGS, v)
+                      setStressAuto(v)
+                    }, 'Ajuste guardado en el anillo.')()
+                  }}
+                />
+              </label>
+              <label className="toggle">
+                <span>
+                  HRV automático
+                  <small>Variabilidad del pulso cada 30 min: indica recuperación y cansancio.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  disabled={!connected || busy || hrvAuto === undefined}
+                  checked={!!hrvAuto}
+                  onChange={(e) => {
+                    const v = e.target.checked
+                    void run(async () => {
+                      await ring.setAutoSetting(CMD.HRV_SETTINGS, v)
+                      setHrvAuto(v)
                     }, 'Ajuste guardado en el anillo.')()
                   }}
                 />
@@ -709,11 +800,35 @@ export default function App() {
                 >
                   Batería
                 </button>
+                <button className="btn" onClick={() => setScreen('gestures')}>
+                  👆 Gestos
+                </button>
                 {connected && (
                   <button className="btn" onClick={disconnect}>
                     Desconectar
                   </button>
                 )}
+              </div>
+              <div className="row wrap danger-zone">
+                <button
+                  className="btn"
+                  disabled={!connected || busy}
+                  onClick={() => {
+                    if (confirm('¿Apagar el anillo? Para encenderlo de nuevo, ponlo en el cargador.')) void run(() => ring.powerOff(), 'Apagando el anillo…')()
+                  }}
+                >
+                  ⏻ Apagar anillo
+                </button>
+                <button
+                  className="btn danger"
+                  disabled={!connected || busy}
+                  onClick={() => {
+                    if (confirm('¿Restablecer el anillo de fábrica? Se borrarán los datos y ajustes guardados EN EL ANILLO (lo que ya está en el teléfono se conserva).'))
+                      void run(() => ring.factoryReset(), 'Anillo restablecido. Vuelve a conectarlo.')()
+                  }}
+                >
+                  Restablecer de fábrica
+                </button>
               </div>
               {settings.deviceId && (
                 <p className="muted small">
@@ -790,6 +905,15 @@ export default function App() {
       {screen === 'breathe' && (
         <BreatheScreen connected={connected} onSave={(b) => setData((d) => ({ ...d, breaths: [...(d.breaths ?? []), b].slice(-500) }))} onClose={() => setScreen(undefined)} />
       )}
+      {screen === 'gestures' && (
+        <GesturesScreen
+          connected={connected}
+          gestures={settings.gestures ?? {}}
+          onChange={(g) => setSettings((s) => ({ ...s, gestures: g }))}
+          onClose={() => setScreen(undefined)}
+        />
+      )}
+      {screen === 'games' && <GamesScreen connected={connected} onClose={() => setScreen(undefined)} />}
       {screen === 'awards' && <AwardsScreen data={data} settings={settings} onClose={() => setScreen(undefined)} />}
 
       <nav className="tabs">

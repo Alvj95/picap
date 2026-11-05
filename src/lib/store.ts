@@ -18,6 +18,7 @@ export interface BreathSession {
   hrBefore?: number
   hrAfter?: number
 }
+export type GestureAction = 'next' | 'previous' | 'playpause' | 'volup' | 'voldown' | 'workout'
 export interface Settings {
   deviceId?: string
   deviceName?: string
@@ -29,6 +30,8 @@ export interface Settings {
   kcalGoal: number
   /** Hex prefix of the packet the ring sends when tapped, learned in the camera screen. */
   cameraSig?: string
+  /** Learned ring gestures: packet hex prefix → action. */
+  gestures?: Record<string, GestureAction>
 }
 export interface Data {
   hr: Record<string, HrDay>
@@ -37,6 +40,9 @@ export interface Data {
   spots: Spot[]
   workouts: Workout[]
   breaths: BreathSession[]
+  /** 48 half-hour values per day (0 = none). */
+  stress?: Record<string, number[]>
+  hrv?: Record<string, number[]>
   lastSync?: number
 }
 

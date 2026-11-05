@@ -15,6 +15,12 @@ export const CMD = {
   SPO2_SETTINGS: 0x2c,
   STEPS: 0x43,
   FIND: 0x50,
+  POWER_OFF: 0x08,
+  STRESS_SETTINGS: 0x36,
+  STRESS_HISTORY: 0x37,
+  HRV_SETTINGS: 0x38,
+  HRV_HISTORY: 0x39,
+  FACTORY_RESET: 0xff,
   REALTIME_START: 0x69,
   REALTIME_STOP: 0x6a,
 } as const
@@ -196,6 +202,58 @@ class Ring {
 
   async setSpo2Settings(enabled: boolean) {
     await this.exchange(CMD.SPO2_SETTINGS, [0x02, enabled ? 1 : 0], () => true, { timeoutMs: 2500, partialOk: true })
+  }
+
+  /** Turns the ring off (wake it by putting it on the charger). */
+  powerOff() {
+    return this.command(CMD.POWER_OFF, [0x01])
+  }
+
+  /** Erases the ring's stored data and settings. */
+  factoryReset() {
+    return this.command(CMD.FACTORY_RESET, [0x66, 0x66])
+  }
+
+  /** Read/write the on/off switch of periodic stress (0x36) or HRV (0x38) measurement. */
+  async autoSetting(cmd: number): Promise<boolean> {
+    let enabled = false
+    await this.exchange(cmd, [0x01], (p) => {
+      enabled = p[2] === 1
+      return true
+    })
+    return enabled
+  }
+  async setAutoSetting(cmd: number, enabled: boolean) {
+    await this.exchange(cmd, [0x02, enabled ? 1 : 0], () => true, { timeoutMs: 2500, partialOk: true })
+  }
+
+  /**
+   * Today's stress (0x37) or HRV (0x39) log: one value every 30 minutes from midnight (0 = no reading).
+   * Packet 1 carries 12 values from byte 3, later packets 13 values from byte 2; packet 4 is the last.
+   */
+  async halfHourLog(cmd: number): Promise<number[] | null> {
+    const values = new Array(48).fill(0)
+    let empty = false
+    let got = false
+    await this.exchange(
+      cmd,
+      [],
+      (p) => {
+        const n = p[1]
+        if (n === 0xff) {
+          empty = true
+          return true
+        }
+        if (n === 0) return false
+        got = true
+        const start = n === 1 ? 3 : 2
+        const offset = n === 1 ? 0 : 12 + (n - 2) * 13
+        for (let i = start; i < 15; i++) if (offset + i - start < 48) values[offset + i - start] = p[i]
+        return n >= 4
+      },
+      { timeoutMs: 3000, partialOk: true },
+    )
+    return empty || !got || !values.some(Boolean) ? null : values
   }
 
   // ---------- history ----------

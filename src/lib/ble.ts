@@ -51,6 +51,8 @@ interface RingBleNative {
   getNotifyConfig(): Promise<NotifyConfig>
   setNotifyConfig(o: Partial<Omit<NotifyConfig, 'access'>>): Promise<NotifyConfig>
   openNotificationSettings(): Promise<void>
+  setGestures(o: { map: Record<string, string> }): Promise<void>
+  media(o: { action: string }): Promise<void>
 }
 
 export type NotifyKind = 'call' | 'whatsapp' | 'sms' | 'social' | 'email' | 'other'
@@ -230,5 +232,14 @@ export const phoneNotifications = isNative
       set: (c: Partial<Omit<NotifyConfig, 'access'>>) => nativePlugin.setNotifyConfig(c),
       openSettings: () => nativePlugin.openNotificationSettings(),
       onForward: (cb: (d: { app: string; kind: string; delivered: boolean }) => void) => void nativePlugin.addListener('phoneNotification', cb),
+    }
+  : null
+
+export type MediaAction = 'next' | 'previous' | 'playpause' | 'volup' | 'voldown'
+/** Gesture → media-key mapping, executed natively so it also works with the screen off (Android app only). */
+export const nativeGestures = isNative
+  ? {
+      set: (map: Record<string, string>) => nativePlugin.setGestures({ map }),
+      media: (action: MediaAction) => nativePlugin.media({ action }),
     }
   : null

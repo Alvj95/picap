@@ -167,3 +167,35 @@ export function ActivityRings({ rings }: { rings: { value: number; goal: number;
     </svg>
   )
 }
+
+/** Bars every 30 minutes (stress 0–100, HRV in ms). */
+export function HalfHourChart({ values, kind }: { values?: number[]; kind: 'stress' | 'hrv' }) {
+  const pts = (values ?? []).map((v, i) => ({ i, v })).filter((p) => p.v > 0)
+  if (!pts.length) return <p className="empty">Sin datos. Activa la medición en Ajustes y sincroniza más tarde.</p>
+  const max = kind === 'stress' ? 100 : Math.max(80, ...pts.map((p) => p.v))
+  const bw = plotW / 48
+  const color = (v: number) => (kind === 'hrv' ? '#3ec7ff' : v < 30 ? '#3ee6a0' : v < 60 ? '#ffb547' : '#ff5c7a')
+  const vals = pts.map((p) => p.v)
+  const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+  return (
+    <>
+      <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label={kind === 'stress' ? 'Estrés del día' : 'Variabilidad del pulso'}>
+        <HourAxis />
+        <text x={PAD.l - 4} y={PAD.t + 6} textAnchor="end" className="axis-label">
+          {max}
+        </text>
+        {pts.map((p) => (
+          <rect key={p.i} x={PAD.l + p.i * bw + 0.5} width={bw - 1} y={PAD.t + plotH - (p.v / max) * plotH} height={(p.v / max) * plotH} rx={1.5} fill={color(p.v)} />
+        ))}
+      </svg>
+      <div className="stats">
+        <span>
+          Media <b>{avg}</b>
+          {kind === 'hrv' ? ' ms' : ''}
+        </span>
+        {kind === 'stress' && <span>{avg < 30 ? '😌 Relajado' : avg < 60 ? '🙂 Normal' : '😣 Alto'}</span>}
+        {kind === 'hrv' && <span>{avg >= 50 ? '💪 Buena recuperación' : avg >= 30 ? '🙂 Normal' : '😴 Necesitas descanso'}</span>}
+      </div>
+    </>
+  )
+}

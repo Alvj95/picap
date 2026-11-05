@@ -4,7 +4,7 @@ import { fmtDuration, fmtPace, gpsAvailable, kmh, SPORTS, Tracker, type Sport, t
 import { ring } from './lib/ring'
 import { RouteMap } from './RouteMap'
 
-const tracker = new Tracker()
+export const tracker = new Tracker()
 
 export function WorkoutTab(props: { connected: boolean; workouts: Workout[]; onSave: (w: Workout) => void; onDelete: (id: number) => void }) {
   const [sport, setSport] = useState<Sport>('run')

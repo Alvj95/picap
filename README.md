@@ -26,6 +26,10 @@ Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica 
 - **🧘 Respiración guiada**: Calma, Cuadrada o 4-7-8, de 1 a 5 min, con tu pulso antes y después.
 - **📊 Resumen semanal**: pasos por día con la meta, sueño medio, pulso en reposo y entrenos, comparados con la semana anterior.
 - **🏆 Rachas y logros**: racha de días cumpliendo la meta y 16 logros desbloqueables.
+- **😌 Estrés y 💓 HRV**: cada 30 min, con gráfica diaria (si el anillo lo admite).
+- **👆 Gestos**: enseña a la app cada gesto del anillo (dos veces) y asígnale pausar/pasar canción, volumen o empezar/terminar entreno. Los controles de música funcionan con cualquier app y con la pantalla apagada. Incluye un detector de eventos para descubrir los modos deportivos del anillo.
+- **🎮 Juegos** controlados con el anillo: *Salta* (toca para saltar), *Reflejos* (tiempo de reacción) y *Globo zen* (sube cuando baja tu pulso). Sin anillo se juegan tocando la pantalla.
+- **Apagar y restablecer de fábrica** el anillo desde Ajustes.
 - **Historial de 7 días**: gráfica de pulso del día (min/media/máx), pasos por hora, fases del sueño y mediciones manuales.
 - **Ajustes del anillo**: pulso automático (cada 5–60 min) y oxígeno automático.
 - **Alertas**: vibración y aviso si el pulso sale del rango o el oxígeno baja del límite que elijas.

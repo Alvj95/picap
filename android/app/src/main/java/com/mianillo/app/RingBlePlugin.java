@@ -19,6 +19,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.AudioManager;
+import android.view.KeyEvent;
 import android.provider.Settings;
 import android.os.Build;
 import android.os.Handler;
@@ -33,6 +35,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.util.ArrayDeque;
+import java.util.Iterator;
+import org.json.JSONObject;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -406,10 +410,71 @@ public class RingBlePlugin extends Plugin {
 
     private void emit(BluetoothGattCharacteristic ch, byte[] value) {
         if (value == null) return;
+        boolean big = BIG_NOTIFY.equals(ch.getUuid());
+        String hex = toHex(value);
+        if (!big) handleGesture(hex);
         JSObject ev = new JSObject();
-        ev.put("channel", BIG_NOTIFY.equals(ch.getUuid()) ? "big" : "main");
-        ev.put("value", toHex(value));
+        ev.put("channel", big ? "big" : "main");
+        ev.put("value", hex);
         notifyListeners("notify", ev);
+    }
+
+    // ---------- ring gestures -> media keys (works with the screen off) ----------
+
+    static final String GESTURE_PREFS = "ring_gestures";
+    private long lastGesture = 0;
+
+    private void handleGesture(String hex) {
+        try {
+            String raw = getContext().getSharedPreferences(GESTURE_PREFS, Context.MODE_PRIVATE).getString("map", "{}");
+            JSONObject map = new JSONObject(raw);
+            for (Iterator<String> it = map.keys(); it.hasNext(); ) {
+                String prefix = it.next();
+                if (prefix.isEmpty() || !hex.startsWith(prefix)) continue;
+                long now = System.currentTimeMillis();
+                if (now - lastGesture < 500) return;
+                lastGesture = now;
+                mediaAction(map.getString(prefix));
+                return;
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** Media actions any app (Spotify, YouTube…) obeys; no special permission needed. Returns false for non-media actions. */
+    private boolean mediaAction(String action) {
+        AudioManager am = (AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) return false;
+        int key;
+        switch (action) {
+            case "next": key = KeyEvent.KEYCODE_MEDIA_NEXT; break;
+            case "previous": key = KeyEvent.KEYCODE_MEDIA_PREVIOUS; break;
+            case "playpause": key = KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE; break;
+            case "volup":
+                am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
+                return true;
+            case "voldown":
+                am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
+                return true;
+            default:
+                return false;
+        }
+        am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, key));
+        am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, key));
+        return true;
+    }
+
+    @PluginMethod
+    public void setGestures(PluginCall call) {
+        JSObject map = call.getObject("map", new JSObject());
+        getContext().getSharedPreferences(GESTURE_PREFS, Context.MODE_PRIVATE).edit().putString("map", map.toString()).apply();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void media(PluginCall call) {
+        boolean ok = mediaAction(call.getString("action", ""));
+        if (ok) call.resolve();
+        else call.reject("Acción no válida.");
     }
 
     @Override

@@ -395,3 +395,46 @@ p { margin: 0 0 10px; line-height: 1.45; }
 @keyframes screen-in { from { transform: translateY(12px); opacity: 0; } }
 @keyframes fade { to { opacity: 0; } }
 @keyframes breathe-idle { 50% { transform: scale(0.85); } }
+
+/* ---------- Gestures, games, misc ---------- */
+.tools { grid-template-columns: repeat(3, 1fr); }
+.tool-icon.game { background: linear-gradient(135deg, rgba(255, 92, 122, 0.32), rgba(164, 107, 255, 0.14)); }
+.tool-icon.gesture { background: linear-gradient(135deg, rgba(62, 199, 255, 0.28), rgba(62, 230, 160, 0.12)); }
+.danger-zone { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.gesture-list { list-style: none; padding: 0; margin: 0; }
+.gesture-list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.gesture-list li:last-child { border-bottom: 0; }
+.gesture-list b { display: block; font-size: 14px; }
+.gesture-list small { color: var(--muted); font-size: 11px; word-break: break-all; }
+.g-icon { font-size: 22px; width: 32px; text-align: center; }
+.btn.small-inline { padding: 7px 12px; font-size: 13px; border-radius: 10px; }
+.events { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow: auto; font-size: 12px; }
+.events li { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.events code { color: var(--accent-2); word-break: break-all; flex: 1; }
+
+.game-card { display: flex; align-items: center; gap: 14px; text-align: left; width: 100%; color: inherit; font: inherit; }
+.game-card b { display: block; font-size: 17px; }
+.game-card small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px; }
+.game-card em { display: inline-block; font-style: normal; font-size: 12px; color: var(--warn); margin-top: 6px; font-weight: 700; }
+.game-emoji { font-size: 40px; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 18px; background: var(--panel-2); flex: none; }
+.game-play { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--grad); color: #fff; flex: none; }
+.game-area { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; user-select: none; touch-action: manipulation; }
+.game-canvas { width: 100%; max-width: 520px; height: auto; border-radius: 20px; border: 1px solid var(--line); }
+.game-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; font-size: 15px; padding: 30px; pointer-events: none; }
+.game-overlay b { font-size: 34px; }
+.game-overlay small { color: var(--muted); }
+.new-best { display: block; color: var(--warn); font-weight: 800; font-size: 16px; margin-top: 4px; }
+.reflex { margin: 0 16px 20px; border-radius: 28px; transition: background 0.1s; background: var(--panel); border: 1px solid var(--line); }
+.reflex.wait { background: linear-gradient(160deg, #5a1c2c, #2a0f18); }
+.reflex.go { background: linear-gradient(160deg, #1f9d6b, #0d5a3d); }
+.reflex.early { background: linear-gradient(160deg, #5a4a1c, #2a2210); }
+.reflex-text { font-size: 44px; font-weight: 800; text-align: center; display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.reflex-text small { font-size: 14px; font-weight: 500; color: rgba(255, 255, 255, 0.75); }
+.balloon-area { justify-content: space-between; }
+.balloon-sky { position: relative; width: 100%; flex: 1; border-radius: 24px; overflow: hidden; background: linear-gradient(180deg, #1b2a6b, #3a2a7a 50%, #e07a5f); border: 1px solid var(--line); }
+.balloon { position: absolute; left: 50%; transform: translateX(-50%); font-size: 70px; transition: bottom 1.2s ease-out; animation: sway 3s ease-in-out infinite; }
+.balloon-meta { position: absolute; top: 12px; left: 14px; right: 14px; display: flex; justify-content: space-between; color: #fff; }
+.balloon-meta b { font-size: 24px; }
+.balloon-panel { width: 100%; text-align: center; padding: 14px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.balloon-panel p { margin: 0; }
+@keyframes sway { 50% { margin-left: 8px; } }

@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toHex } from './lib/ble'
-import { ring } from './lib/ring'
+import { onRingInput } from './lib/ringInput'
 import { shareBlob } from './lib/share'
-
-/** Ignore replies/status the ring sends on its own that are not touches (battery, live readings, notifications). */
-const NOT_A_TOUCH = new Set([0x03, 0x69, 0x6a, 0x73])
 
 export function CameraScreen(props: { connected: boolean; signature?: string; onLearn: (sig: string | undefined) => void; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null)
@@ -78,9 +74,7 @@ export function CameraScreen(props: { connected: boolean; signature?: string; on
   // Ring touches: learn the packet once, then every matching packet fires the shutter.
   useEffect(
     () =>
-      ring.onEvent((channel, p) => {
-        if (channel !== 'main' || NOT_A_TOUCH.has(p[0])) return
-        const hex = toHex(p)
+      onRingInput((hex) => {
         if (learning) {
           props.onLearn(hex.slice(0, 4))
           setLearning(false)
