@@ -61,6 +61,8 @@ export interface NotifyConfig {
   kinds: NotifyKind[]
   /** Android notification access granted to the app. */
   access: boolean
+  /** False in the standard APK (no notification listener, so Play Protect allows it). */
+  supported: boolean
 }
 
 const nativePlugin = registerPlugin<RingBleNative>('RingBle')

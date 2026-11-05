@@ -27,6 +27,13 @@ android {
             keyPassword 'picapdebug'
         }
     }
+    // Two APKs with the same id and signature (each installs over the other):
+    // "lite" has no notification listener so Play Protect lets it install; "avisos" adds it.
+    flavorDimensions = ["variant"]
+    productFlavors {
+        lite { dimension "variant" }
+        avisos { dimension "variant" }
+    }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug

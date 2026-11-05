@@ -449,6 +449,16 @@ public class RingBlePlugin extends Plugin {
         notifyListeners("phoneNotification", ev);
     }
 
+    /** False in the "lite" APK, which leaves the listener service out of the manifest. */
+    private boolean listenerDeclared() {
+        try {
+            getContext().getPackageManager().getServiceInfo(new ComponentName(getContext(), RingNotificationListener.class), 0);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private boolean hasNotificationAccess() {
         String flat = Settings.Secure.getString(getContext().getContentResolver(), "enabled_notification_listeners");
         ComponentName me = new ComponentName(getContext(), RingNotificationListener.class);
@@ -465,6 +475,7 @@ public class RingBlePlugin extends Plugin {
         for (String k : sp.getStringSet("kinds", RingNotificationListener.DEFAULT_KINDS)) kinds.put(k);
         ret.put("kinds", kinds);
         ret.put("access", hasNotificationAccess());
+        ret.put("supported", listenerDeclared());
         call.resolve(ret);
     }
 

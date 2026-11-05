@@ -622,6 +622,13 @@ export default function App() {
                 <p className="muted small">Disponible solo en la app de Android.</p>
               ) : !notifyCfg ? (
                 <p className="muted small">Cargando…</p>
+              ) : !notifyCfg.supported ? (
+                <div className="callout">
+                  <p className="small">
+                    Esta versión no incluye los avisos: Google Play Protect bloquea las apps instaladas fuera de la tienda que leen notificaciones. Si los quieres, instala{' '}
+                    <b>MiAnillo-avisos.apk</b> desde la página de Releases (hay que pausar Play Protect mientras se instala).
+                  </p>
+                </div>
               ) : (
                 <>
                   <label className="toggle">

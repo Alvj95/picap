@@ -31,11 +31,12 @@ jobs:
       # The ubuntu runner ships the Android SDK (ANDROID_HOME); Gradle fetches any missing platform.
       - name: Assemble debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleLiteDebug assembleAvisosDebug --no-daemon
 
       - name: Package APK
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk MiAnillo.apk
+          cp android/app/build/outputs/apk/lite/debug/app-lite-debug.apk MiAnillo.apk
+          cp android/app/build/outputs/apk/avisos/debug/app-avisos-debug.apk MiAnillo-avisos.apk
           # Some browsers (Edge SmartScreen, Chrome) block raw .apk downloads; a zip copy gets through.
           zip -j MiAnillo-apk.zip MiAnillo.apk
 
@@ -55,9 +56,12 @@ jobs:
           files: |
             MiAnillo.apk
             MiAnillo-apk.zip
+            MiAnillo-avisos.apk
           body: |
             APK de Android de Mi Anillo (build de prueba, rama `${{ github.ref_name }}`).
 
             **Instalar:** descarga `MiAnillo.apk` desde el teléfono, ábrelo y permite instalar apps de origen desconocido.
 
             Si el navegador bloquea la descarga del .apk, baja `MiAnillo-apk.zip`, descomprímelo y abre el .apk que trae dentro.
+
+            `MiAnillo-avisos.apk` añade los avisos de notificaciones en el anillo. Play Protect la bloquea por leer notificaciones: pausa Play Protect (Play Store → tu foto → Play Protect → ⚙️) solo mientras la instalas.

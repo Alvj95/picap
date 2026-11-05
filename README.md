@@ -10,6 +10,8 @@ App **gratuita y sin nube** para anillos inteligentes que usan la app **QRing**,
 4. Cierra la app QRing (o desvincula el anillo allí): el anillo solo acepta **una conexión a la vez**.
 5. En Mi Anillo pulsa **Buscar anillo**, concede el permiso de “dispositivos cercanos” y elige tu anillo.
 
+**Dos APK:** `MiAnillo.apk` es la normal y se instala sin problemas. `MiAnillo-avisos.apk` añade los avisos de notificaciones en el anillo; Google Play Protect bloquea las apps instaladas fuera de la tienda que leen notificaciones, así que para esa hay que pausar Play Protect mientras se instala (Play Store → tu foto → Play Protect → ⚙️).
+
 Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica en Releases.
 
 > iPhone: Safari no permite Bluetooth en páginas web, así que la versión web no puede conectarse al anillo desde iOS. En Chrome (Android o PC) la versión web sí funciona con Web Bluetooth.
@@ -20,7 +22,7 @@ Cada push compila un APK nuevo automáticamente con GitHub Actions y lo publica 
 - **Medir ahora**: pulso (lpm) y SpO₂ (%) en tiempo real.
 - **Entreno con GPS** (del teléfono; el anillo no tiene GPS): caminar, correr o bici con mapa de la ruta (OpenStreetMap), distancia, tiempo, ritmo o velocidad, calorías y pulso del anillo durante el ejercicio. Historial de entrenos con su mapa.
 - **📸 Cámara remota**: haz fotos tocando el anillo. La app aprende el toque o gesto de tu anillo la primera vez. Incluye temporizador, cámara frontal/trasera y compartir o guardar en Fotos.
-- **🔔 Avisos en el anillo**: llamadas, WhatsApp, SMS, redes sociales y correo hacen que el anillo se encienda o vibre (servicio nativo de Android, funciona con la app en segundo plano).
+- **🔔 Avisos en el anillo**: llamadas, WhatsApp, SMS, redes sociales y correo hacen que el anillo se encienda o vibre (servicio nativo de Android, funciona con la app en segundo plano; solo en `MiAnillo-avisos.apk`).
 - **🧘 Respiración guiada**: Calma, Cuadrada o 4-7-8, de 1 a 5 min, con tu pulso antes y después.
 - **📊 Resumen semanal**: pasos por día con la meta, sueño medio, pulso en reposo y entrenos, comparados con la semana anterior.
 - **🏆 Rachas y logros**: racha de días cumpliendo la meta y 16 logros desbloqueables.
